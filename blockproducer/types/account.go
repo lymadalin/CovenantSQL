@@ -68,8 +68,6 @@ type SQLChainProfile struct {
 type Account struct {
 	Address             proto.AccountAddress
 	TokenBalance		[SupportTokenNumber]uint64
-	StableCoinBalance   uint64
-	CovenantCoinBalance uint64
 	Rating              float64
 	NextNonce           pi.AccountNonce
 }
