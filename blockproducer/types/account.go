@@ -67,6 +67,7 @@ type SQLChainProfile struct {
 // Account store its balance, and other mate data.
 type Account struct {
 	Address             proto.AccountAddress
+	TokenBalance		[SupportTokenNumber]uint64
 	StableCoinBalance   uint64
 	CovenantCoinBalance uint64
 	Rating              float64

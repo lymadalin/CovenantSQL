@@ -288,8 +288,7 @@ func loadGenesis() *types.Block {
 		genesis.Transactions = append(genesis.Transactions, pt.NewBaseAccount(
 			&pt.Account{
 				Address:             proto.AccountAddress(ba.Address),
-				StableCoinBalance:   ba.StableCoinBalance,
-				CovenantCoinBalance: ba.CovenantCoinBalance,
+				TokenBalance: [pt.SupportTokenNumber]uint64{10, 10},
 			}))
 	}
 

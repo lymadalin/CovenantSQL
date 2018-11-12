@@ -76,8 +76,7 @@ func generateRandomProfile() *SQLChainProfile {
 func generateRandomAccount() *Account {
 	return &Account{
 		Address:             proto.AccountAddress(generateRandomHash()),
-		StableCoinBalance:   rand.Uint64(),
-		CovenantCoinBalance: rand.Uint64(),
+		TokenBalance: [SupportTokenNumber]uint64{rand.Uint64(), rand.Uint64()},
 		Rating:              rand.Float64(),
 	}
 }

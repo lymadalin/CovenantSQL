@@ -122,15 +122,13 @@ func TestMetaIndex(t *testing.T) {
 			mi.storeAccountObject(&accountObject{
 				Account: pt.Account{
 					Address:             addr1,
-					StableCoinBalance:   10,
-					CovenantCoinBalance: 10,
+					TokenBalance: [pt.SupportTokenNumber]uint64{10, 10},
 				},
 			})
 			mi.storeAccountObject(&accountObject{
 				Account: pt.Account{
 					Address:             addr2,
-					StableCoinBalance:   10,
-					CovenantCoinBalance: 10,
+					TokenBalance: [pt.SupportTokenNumber]uint64{10, 10},
 				},
 			})
 			Convey("The account objects should be retrievable", func() {

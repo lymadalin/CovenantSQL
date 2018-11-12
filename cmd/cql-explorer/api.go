@@ -207,8 +207,8 @@ func (a *explorerAPI) formatRawTx(t pi.Transaction) (res map[string]interface{})
 		res = map[string]interface{}{
 			"next_nonce":       tx.NextNonce,
 			"address":          tx.Address,
-			"stable_balance":   tx.StableCoinBalance,
-			"covenant_balance": tx.CovenantCoinBalance,
+			"stable_balance":   tx.TokenBalance[pt.Particle],
+			"covenant_balance": tx.TokenBalance[pt.Wave],
 			"rating":           tx.Rating,
 		}
 	case *pi.TransactionWrapper:
