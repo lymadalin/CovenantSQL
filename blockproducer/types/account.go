@@ -18,6 +18,7 @@ package types
 
 import (
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
+	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 )
 
@@ -69,6 +70,7 @@ type MinerInfo struct {
 // SQLChainProfile defines a SQLChainProfile related to an account.
 type SQLChainProfile struct {
 	ID      proto.DatabaseID
+	Address proto.AccountAddress
 	Period uint64
 	GasPrice uint64
 
@@ -82,6 +84,10 @@ type SQLChainProfile struct {
 	Miners  []*MinerInfo
 
 	Users   []*SQLChainUser
+}
+
+func (s *SQLChainProfile) ID2Address() {
+	s.Address = proto.AccountAddress(hash.THashH([]byte(s.ID)))
 }
 
 // Account store its balance, and other mate data.

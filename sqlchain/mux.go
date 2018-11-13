@@ -131,34 +131,6 @@ type MuxFetchAckedQueryResp struct {
 	FetchAckedQueryResp
 }
 
-// MuxSignBillingReq defines a request of the SignBilling RPC method.
-type MuxSignBillingReq struct {
-	proto.Envelope
-	proto.DatabaseID
-	SignBillingReq
-}
-
-// MuxSignBillingResp defines a response of the SignBilling RPC method.
-type MuxSignBillingResp struct {
-	proto.Envelope
-	proto.DatabaseID
-	SignBillingResp
-}
-
-// MuxLaunchBillingReq defines a request of the LaunchBilling RPC method.
-type MuxLaunchBillingReq struct {
-	proto.Envelope
-	proto.DatabaseID
-	LaunchBillingReq
-}
-
-// MuxLaunchBillingResp defines a response of the LaunchBilling RPC method.
-type MuxLaunchBillingResp struct {
-	proto.Envelope
-	proto.DatabaseID
-	LaunchBillingResp
-}
-
 // MuxSubscribeTransactionsReq defines a request of the SubscribeTransactions RPC method.
 type MuxSubscribeTransactionsReq struct {
 	proto.Envelope
@@ -254,30 +226,6 @@ func (s *MuxService) FetchAckedQuery(
 		resp.DatabaseID = req.DatabaseID
 		return v.(*ChainRPCService).FetchAckedQuery(
 			&req.FetchAckedQueryReq, &resp.FetchAckedQueryResp)
-	}
-
-	return ErrUnknownMuxRequest
-}
-
-// SignBilling is the RPC method to get signature for a billing request from the target server.
-func (s *MuxService) SignBilling(req *MuxSignBillingReq, resp *MuxSignBillingResp) (err error) {
-	if v, ok := s.serviceMap.Load(req.DatabaseID); ok {
-		resp.Envelope = req.Envelope
-		resp.DatabaseID = req.DatabaseID
-		return v.(*ChainRPCService).SignBilling(&req.SignBillingReq, &resp.SignBillingResp)
-	}
-
-	return ErrUnknownMuxRequest
-}
-
-// LaunchBilling is the RPC method to launch a new billing process in the target server.
-func (s *MuxService) LaunchBilling(req *MuxLaunchBillingReq, resp *MuxLaunchBillingResp) (
-	err error,
-) {
-	if v, ok := s.serviceMap.Load(req.DatabaseID); ok {
-		resp.Envelope = req.Envelope
-		resp.DatabaseID = req.DatabaseID
-		return v.(*ChainRPCService).LaunchBilling(&req.LaunchBillingReq, &resp.LaunchBillingResp)
 	}
 
 	return ErrUnknownMuxRequest

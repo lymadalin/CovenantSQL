@@ -63,6 +63,8 @@ const (
 	TransactionTypeBaseAccount
 	// TransactionTypeCreateDatabase defines database creation transaction type.
 	TransactionTypeCreateDatabase
+	// TransactionTypeSQLBilling
+	TransactionTypeSQLBilling
 	// TransactionTypeNumber defines transaction types number.
 	TransactionTypeNumber
 )
@@ -87,6 +89,8 @@ func (t TransactionType) String() string {
 		return "BaseAccount"
 	case TransactionTypeCreateDatabase:
 		return "CreateDatabase"
+	case TransactionTypeSQLBilling:
+		return "SQLBilling"
 	default:
 		return "Unknown"
 	}

@@ -17,8 +17,6 @@
 package sqlchain
 
 import (
-	pt "github.com/CovenantSQL/CovenantSQL/blockproducer/types"
-	"github.com/CovenantSQL/CovenantSQL/crypto/asymmetric"
 	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	ct "github.com/CovenantSQL/CovenantSQL/sqlchain/types"
@@ -88,27 +86,6 @@ type FetchAckedQueryResp struct {
 	Ack *wt.SignedAckHeader
 }
 
-// SignBillingReq defines a request of the SignBilling RPC method.
-type SignBillingReq struct {
-	pt.BillingRequest
-}
-
-// SignBillingResp defines a response of the SignBilling RPC method.
-type SignBillingResp struct {
-	HeaderHash hash.Hash
-	Signee     *asymmetric.PublicKey
-	Signature  *asymmetric.Signature
-}
-
-// LaunchBillingReq defines a request of LaunchBilling RPC method.
-type LaunchBillingReq struct {
-	Low, High int32
-}
-
-// LaunchBillingResp defines a response of LaunchBilling RPC method.
-type LaunchBillingResp struct {
-}
-
 // SubscribeTransactionsReq defines a request of SubscribeTransaction RPC method.
 type SubscribeTransactionsReq struct {
 	SubscriberID proto.NodeID
@@ -164,18 +141,6 @@ func (s *ChainRPCService) FetchAckedQuery(req *FetchAckedQueryReq, resp *FetchAc
 ) (err error) {
 	resp.Ack, err = s.chain.FetchAckedQuery(req.Height, req.SignedAckedHash)
 	return
-}
-
-// SignBilling is the RPC method to get signature for a billing request from the target server.
-func (s *ChainRPCService) SignBilling(req *SignBillingReq, resp *SignBillingResp) (err error) {
-	resp.HeaderHash = req.BillingRequest.RequestHash
-	resp.Signee, resp.Signature, err = s.chain.SignBilling(&req.BillingRequest)
-	return
-}
-
-// LaunchBilling is the RPC method to launch a new billing process in the target server.
-func (s *ChainRPCService) LaunchBilling(req *LaunchBillingReq, _ *LaunchBillingResp) error {
-	return s.chain.LaunchBilling(req.Low, req.High)
 }
 
 // SubscribeTransactions is the RPC method to fetch subscribe new packed and confirmed transactions from the target server.

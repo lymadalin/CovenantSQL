@@ -28,8 +28,6 @@ import (
 	"github.com/CovenantSQL/CovenantSQL/crypto/kms"
 	"github.com/CovenantSQL/CovenantSQL/pow/cpuminer"
 	"github.com/CovenantSQL/CovenantSQL/proto"
-	"github.com/CovenantSQL/CovenantSQL/route"
-	ct "github.com/CovenantSQL/CovenantSQL/sqlchain/types"
 	"github.com/CovenantSQL/CovenantSQL/utils/log"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -261,7 +259,7 @@ func TestMultiNode(t *testing.T) {
 			}(chains[i])
 		}
 
-		for i := range chains {
+		for range chains {
 			wg := &sync.WaitGroup{}
 			sC := make(chan struct{})
 
@@ -275,36 +273,10 @@ func TestMultiNode(t *testing.T) {
 						case <-sC:
 							break foreverLoop
 						default:
+							// TODO(lambda): add tx test
 							// test AdviseBillingRequest RPC
-							br, err := generateRandomBillingRequest()
+							_, err := generateRandomBillingRequest()
 							c.So(err, ShouldBeNil)
-
-							bReq := &ct.AdviseBillingReq{
-								Envelope: proto.Envelope{
-									// TODO(lambda): Add fields.
-								},
-								Req: br,
-							}
-							bResp := &ct.AdviseBillingResp{}
-							log.WithFields(log.Fields{
-								"node":        val,
-								"requestHash": br.RequestHash,
-							}).Debug("advising billing request")
-							err = chains[i].cl.CallNode(chains[i].rt.nodeID, route.MCCAdviseBillingRequest.String(), bReq, bResp)
-							if err != nil {
-								log.WithFields(log.Fields{
-									"peer":         chains[i].rt.getPeerInfoString(),
-									"curr_turn":    chains[i].rt.getNextTurn(),
-									"now_time":     time.Now().UTC().Format(time.RFC3339Nano),
-									"request_hash": br.RequestHash,
-								}).WithError(err).Error("Failed to advise new billing request")
-							}
-							// TODO(leventeliu): this test needs to be improved using some preset
-							// accounts. Or this request will return an "ErrAccountNotFound" error.
-							c.So(err, ShouldNotBeNil)
-							c.So(err.Error(), ShouldEqual, ErrAccountNotFound.Error())
-							//log.Debugf("response %d hash is %s", val, bResp.Resp.RequestHash)
-
 						}
 					}
 				}(j)

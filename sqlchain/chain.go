@@ -24,9 +24,6 @@ import (
 	"sync"
 	"time"
 
-	pt "github.com/CovenantSQL/CovenantSQL/blockproducer/types"
-	"github.com/CovenantSQL/CovenantSQL/crypto"
-	"github.com/CovenantSQL/CovenantSQL/crypto/asymmetric"
 	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
 	"github.com/CovenantSQL/CovenantSQL/crypto/kms"
 	"github.com/CovenantSQL/CovenantSQL/proto"
@@ -103,11 +100,6 @@ type Chain struct {
 	responses chan *wt.ResponseHeader
 	acks      chan *wt.AckHeader
 
-	// DBAccount info
-	tokenType    pt.TokenType
-	gasPrice     uint64
-	updatePeriod uint64
-
 	// observerLock defines the lock of observer update operations.
 	observerLock sync.Mutex
 	// observers defines the observer nodes of current chain.
@@ -167,9 +159,6 @@ func NewChain(c *Config) (chain *Chain, err error) {
 		heights:      make(chan int32, 1),
 		responses:    make(chan *wt.ResponseHeader),
 		acks:         make(chan *wt.AckHeader),
-		tokenType:    c.TokenType,
-		gasPrice:     c.GasPrice,
-		updatePeriod: c.UpdatePeriod,
 
 		// Observer related
 		observers:           make(map[proto.NodeID]int32),
@@ -215,9 +204,6 @@ func LoadChain(c *Config) (chain *Chain, err error) {
 		heights:      make(chan int32, 1),
 		responses:    make(chan *wt.ResponseHeader),
 		acks:         make(chan *wt.AckHeader),
-		tokenType:    c.TokenType,
-		gasPrice:     c.GasPrice,
-		updatePeriod: c.UpdatePeriod,
 
 		// Observer related
 		observers:           make(map[proto.NodeID]int32),
@@ -1088,251 +1074,6 @@ func (c *Chain) VerifyAndPushAckedQuery(ack *wt.SignedAckHeader) (err error) {
 // UpdatePeers updates peer list of the sql-chain.
 func (c *Chain) UpdatePeers(peers *proto.Peers) error {
 	return c.rt.updatePeers(peers)
-}
-
-// getBilling returns a billing request from the blocks within height range [low, high].
-func (c *Chain) getBilling(low, high int32) (req *pt.BillingRequest, err error) {
-	// Height `n` is ensured (or skipped) if `Next Turn` > `n` + 1
-	if c.rt.getNextTurn() <= high+1 {
-		err = ErrUnavailableBillingRang
-		return
-	}
-
-	var (
-		n                   *blockNode
-		addr                proto.AccountAddress
-		ack                 *wt.SignedAckHeader
-		lowBlock, highBlock *ct.Block
-		billings            = make(map[proto.AccountAddress]*proto.AddrAndGas)
-	)
-
-	if head := c.rt.getHead(); head != nil {
-		n = head.node
-	}
-
-	for ; n != nil && n.height > high; n = n.parent {
-	}
-
-	for ; n != nil && n.height >= low; n = n.parent {
-		if lowBlock == nil {
-			lowBlock = n.block
-		}
-
-		highBlock = n.block
-
-		if addr, err = crypto.PubKeyHash(n.block.Signee()); err != nil {
-			return
-		}
-
-		if billing, ok := billings[addr]; ok {
-			billing.GasAmount = c.rt.producingReward
-		} else {
-			producer := n.block.Producer()
-			billings[addr] = &proto.AddrAndGas{
-				AccountAddress: addr,
-				RawNodeID:      *producer.ToRawNodeID(),
-				GasAmount:      c.rt.producingReward,
-			}
-		}
-
-		for _, v := range n.block.Queries {
-			if ack, err = c.queryOrSyncAckedQuery(n.height, v, n.block.Producer()); err != nil {
-				return
-			}
-
-			if addr, err = crypto.PubKeyHash(ack.SignedResponseHeader().Signee); err != nil {
-				return
-			}
-
-			if billing, ok := billings[addr]; ok {
-				billing.GasAmount += c.rt.price[ack.SignedRequestHeader().QueryType] *
-					ack.SignedRequestHeader().BatchCount
-			} else {
-				billings[addr] = &proto.AddrAndGas{
-					AccountAddress: addr,
-					RawNodeID:      *ack.SignedResponseHeader().NodeID.ToRawNodeID(),
-					GasAmount:      c.rt.producingReward,
-				}
-			}
-		}
-	}
-
-	if lowBlock == nil || highBlock == nil {
-		err = ErrUnavailableBillingRang
-		return
-	}
-
-	// Make request
-	gasAmounts := make([]*proto.AddrAndGas, 0, len(billings))
-
-	for _, v := range billings {
-		gasAmounts = append(gasAmounts, v)
-	}
-
-	req = &pt.BillingRequest{
-		Header: pt.BillingRequestHeader{
-			DatabaseID: c.rt.databaseID,
-			LowBlock:   *lowBlock.BlockHash(),
-			LowHeight:  low,
-			HighBlock:  *highBlock.BlockHash(),
-			HighHeight: high,
-			GasAmounts: gasAmounts,
-		},
-	}
-	return
-}
-
-func (c *Chain) collectBillingSignatures(billings *pt.BillingRequest) {
-	defer c.rt.wg.Done()
-	// Process sign billing responses, note that range iterating over channel will only break if
-	// the channle is closed
-	req := &MuxSignBillingReq{
-		Envelope: proto.Envelope{
-			// TODO(leventeliu): Add fields.
-		},
-		DatabaseID: c.rt.databaseID,
-		SignBillingReq: SignBillingReq{
-			BillingRequest: *billings,
-		},
-	}
-	proWG := &sync.WaitGroup{}
-	respC := make(chan *SignBillingResp)
-	defer proWG.Wait()
-	proWG.Add(1)
-	go func() {
-		defer proWG.Done()
-
-		bpReq := &ct.AdviseBillingReq{
-			Req: billings,
-		}
-
-		var (
-			bpNodeID proto.NodeID
-			err      error
-		)
-
-		for resp := range respC {
-			if err = bpReq.Req.AddSignature(resp.Signee, resp.Signature, false); err != nil {
-				// consume all rpc result
-				for range respC {
-				}
-
-				return
-			}
-		}
-
-		defer log.WithFields(log.Fields{
-			"peer":             c.rt.getPeerInfoString(),
-			"time":             c.rt.getChainTimeString(),
-			"signees_count":    len(req.Signees),
-			"signatures_count": len(req.Signatures),
-			"bp":               bpNodeID,
-		}).WithError(err).Debug(
-			"Sent billing request")
-
-		if bpNodeID, err = rpc.GetCurrentBP(); err != nil {
-			return
-		}
-
-		var resp interface{}
-		if err = c.cl.CallNode(bpNodeID, route.MCCAdviseBillingRequest.String(), bpReq, resp); err != nil {
-			return
-		}
-	}()
-
-	// Send requests and push responses to response channel
-	peers := c.rt.getPeers()
-	rpcWG := &sync.WaitGroup{}
-	defer func() {
-		rpcWG.Wait()
-		close(respC)
-	}()
-
-	for _, s := range peers.Servers {
-		if s != c.rt.getServer() {
-			rpcWG.Add(1)
-			go func(id proto.NodeID) {
-				defer rpcWG.Done()
-				resp := &MuxSignBillingResp{}
-
-				if err := c.cl.CallNode(id, route.SQLCSignBilling.String(), req, resp); err != nil {
-					log.WithFields(log.Fields{
-						"peer": c.rt.getPeerInfoString(),
-						"time": c.rt.getChainTimeString(),
-					}).WithError(err).Error(
-						"Failed to send sign billing request")
-				}
-
-				respC <- &resp.SignBillingResp
-			}(s)
-		}
-	}
-}
-
-// LaunchBilling launches a new billing process for the blocks within height range [low, high]
-// (inclusive).
-func (c *Chain) LaunchBilling(low, high int32) (err error) {
-	var (
-		req *pt.BillingRequest
-	)
-
-	defer log.WithFields(log.Fields{
-		"peer": c.rt.getPeerInfoString(),
-		"time": c.rt.getChainTimeString(),
-		"low":  low,
-		"high": high,
-	}).WithError(err).Debug("Launched billing process")
-
-	if req, err = c.getBilling(low, high); err != nil {
-		return
-	}
-
-	if _, err = req.PackRequestHeader(); err != nil {
-		return
-	}
-
-	c.rt.wg.Add(1)
-	go c.collectBillingSignatures(req)
-	return
-}
-
-// SignBilling signs a billing request.
-func (c *Chain) SignBilling(req *pt.BillingRequest) (
-	pub *asymmetric.PublicKey, sig *asymmetric.Signature, err error,
-) {
-	var (
-		loc *pt.BillingRequest
-	)
-	defer log.WithFields(log.Fields{
-		"peer": c.rt.getPeerInfoString(),
-		"time": c.rt.getChainTimeString(),
-		"low":  req.Header.LowHeight,
-		"high": req.Header.HighHeight,
-	}).WithError(err).Debug("Processing sign billing request")
-
-	// Verify billing results
-	if err = req.VerifySignatures(); err != nil {
-		return
-	}
-
-	if loc, err = c.getBilling(req.Header.LowHeight, req.Header.HighHeight); err != nil {
-		return
-	}
-
-	if err = req.Compare(loc); err != nil {
-		return
-	}
-
-	// Sign block with private key
-	priv, err := kms.GetLocalPrivateKey()
-
-	if err != nil {
-		return
-	}
-
-	pub, sig, err = req.SignRequestHeader(priv, false)
-
-	return
 }
 
 func (c *Chain) addSubscription(nodeID proto.NodeID, startHeight int32) (err error) {
