@@ -81,7 +81,7 @@ func TestMetaIndex(t *testing.T) {
 			So(err, ShouldEqual, ErrAccountNotFound)
 			err = db.Update(mi.DecreaseAccountCovenantBalance(addr1, 1))
 			So(err, ShouldEqual, ErrAccountNotFound)
-			err = db.Update(mi.CreateSQLChain(addr1, dbid1))
+			err = db.Update(mi.CreateSQLChain(addr1, dbid1, 1))
 			So(err, ShouldEqual, ErrAccountNotFound)
 		})
 		Convey("When database objects are stored", func() {
@@ -164,7 +164,7 @@ func TestMetaIndex(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 			Convey("The metaIndex should be ok to add SQLChain objects", func() {
-				err = db.Update(mi.CreateSQLChain(addr1, dbid1))
+				err = db.Update(mi.CreateSQLChain(addr1, dbid1, 0))
 				So(err, ShouldBeNil)
 			})
 		})

@@ -97,7 +97,7 @@ func TestMetaState(t *testing.T) {
 			So(err, ShouldEqual, ErrAccountNotFound)
 		})
 		Convey("The metaState should failed to operate SQLChain for unknown user", func() {
-			err = ms.createSQLChain(addr1, dbid1)
+			err = ms.createSQLChain(addr1, dbid1, 0)
 			So(err, ShouldEqual, ErrAccountNotFound)
 			err = ms.addSQLChainUser(dbid1, addr1, pt.Admin)
 			So(err, ShouldEqual, ErrDatabaseNotFound)
@@ -160,10 +160,10 @@ func TestMetaState(t *testing.T) {
 				So(bl, ShouldEqual, 0)
 			})
 			Convey("When new SQLChain is created", func() {
-				err = ms.createSQLChain(addr1, dbid3)
+				err = ms.createSQLChain(addr1, dbid3, 0)
 				So(err, ShouldBeNil)
 				Convey("The metaState object should report database exists", func() {
-					err = ms.createSQLChain(addr1, dbid3)
+					err = ms.createSQLChain(addr1, dbid3, 0)
 					So(err, ShouldEqual, ErrDatabaseExists)
 				})
 				Convey("When new SQLChain users are added", func() {
@@ -210,7 +210,7 @@ func TestMetaState(t *testing.T) {
 						So(err, ShouldEqual, ErrDatabaseUserExists)
 					})
 					Convey("The metaState object should report database exists", func() {
-						err = ms.createSQLChain(addr1, dbid3)
+						err = ms.createSQLChain(addr1, dbid3, 0)
 						So(err, ShouldEqual, ErrDatabaseExists)
 					})
 				})

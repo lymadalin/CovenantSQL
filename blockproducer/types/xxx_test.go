@@ -63,16 +63,6 @@ func generateRandomAccountAddresses(n int) (s []proto.AccountAddress) {
 	return
 }
 
-func generateRandomProfile() *SQLChainProfile {
-	return &SQLChainProfile{
-		ID:      *generateRandomDatabaseID(),
-		Deposit: rand.Uint64(),
-		Owner:   proto.AccountAddress(generateRandomHash()),
-		Miners:  generateRandomAccountAddresses(rand.Intn(10) + 1),
-		Users:   generateRandomSQLChainUsers(rand.Intn(10) + 1),
-	}
-}
-
 func generateRandomAccount() *Account {
 	return &Account{
 		Address:             proto.AccountAddress(generateRandomHash()),

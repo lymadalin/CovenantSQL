@@ -511,7 +511,7 @@ func (s *metaState) decreaseAccountCovenantBalance(k proto.AccountAddress, amoun
 	return safeSub(&dst.Account.TokenBalance[pt.Wave], &amount)
 }
 
-func (s *metaState) createSQLChain(addr proto.AccountAddress, id proto.DatabaseID) error {
+func (s *metaState) createSQLChain(addr proto.AccountAddress, id proto.DatabaseID, pledge uint64) error {
 	s.Lock()
 	defer s.Unlock()
 	if _, ok := s.dirty.accounts[addr]; !ok {
@@ -528,11 +528,12 @@ func (s *metaState) createSQLChain(addr proto.AccountAddress, id proto.DatabaseI
 		SQLChainProfile: pt.SQLChainProfile{
 			ID:     id,
 			Owner:  addr,
-			Miners: make([]proto.AccountAddress, 0),
+			Miners: make([]*pt.MinerInfo, 0),
 			Users: []*pt.SQLChainUser{
 				{
 					Address:    addr,
 					Permission: pt.Admin,
+					Pledge: pledge,
 				},
 			},
 		},

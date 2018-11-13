@@ -248,7 +248,7 @@ func (i *metaIndex) DecreaseAccountCovenantBalance(
 }
 
 func (i *metaIndex) CreateSQLChain(
-	addr proto.AccountAddress, id proto.DatabaseID) (_ func(*bolt.Tx) error,
+	addr proto.AccountAddress, id proto.DatabaseID, pledge uint64) (_ func(*bolt.Tx) error,
 ) {
 	return func(tx *bolt.Tx) (err error) {
 		var (
@@ -271,6 +271,13 @@ func (i *metaIndex) CreateSQLChain(
 			SQLChainProfile: pt.SQLChainProfile{
 				ID:    id,
 				Owner: addr,
+				Users: []*pt.SQLChainUser{
+					&pt.SQLChainUser{
+						Address: addr,
+						Permission: pt.Admin,
+						Pledge: pledge,
+					},
+				},
 			},
 		}
 		i.databases[id] = co

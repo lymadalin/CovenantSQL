@@ -53,14 +53,34 @@ const (
 type SQLChainUser struct {
 	Address    proto.AccountAddress
 	Permission UserPermission
+	Pledge uint64
+}
+
+// MinerInfo defines a miner.
+type MinerInfo struct {
+	address proto.AccountAddress
+	activeAddress proto.AccountAddress
+	name string
+	PendingIncome uint64
+	ReceivedIncome uint64
+	Pledge uint64
 }
 
 // SQLChainProfile defines a SQLChainProfile related to an account.
 type SQLChainProfile struct {
 	ID      proto.DatabaseID
-	Deposit uint64
+	Period uint64
+	GasPrice uint64
+
+	TokenBalance [SupportTokenNumber]uint64
+	TokenType TokenType
+
+	PayingBalance []uint64
+	PaidBalance []uint64
+
 	Owner   proto.AccountAddress
-	Miners  []proto.AccountAddress
+	Miners  []*MinerInfo
+
 	Users   []*SQLChainUser
 }
 
