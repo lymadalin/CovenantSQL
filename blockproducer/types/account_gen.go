@@ -35,7 +35,7 @@ func (z *Account) MarshalHash() (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Account) Msgsize() (s int) {
-	s = 1 + 13 + hsp.ArrayHeaderSize + (SupportTokenNumber * (hsp.Uint64Size)) + 7 + hsp.Float64Size + 10 + z.NextNonce.Msgsize() + 8 + z.Address.Msgsize()
+	s = 1 + 13 + hsp.ArrayHeaderSize + (int(SupportTokenNumber) * (hsp.Uint64Size)) + 7 + hsp.Float64Size + 10 + z.NextNonce.Msgsize() + 8 + z.Address.Msgsize()
 	return
 }
 
