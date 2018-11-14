@@ -27,9 +27,9 @@ import (
 
 // SQLBillingHeader defines the sql billing header.
 type SQLBillingHeader struct {
-	TargetSQLChain proto.AccountAddress
-	Headers []types.SignedHeader
-	Nonce pi.AccountNonce
+	TargetSQLChain  proto.AccountAddress
+	SQLChainHeaders []*types.SignedHeader
+	Nonce           pi.AccountNonce
 }
 
 // SQLBilling defines the sql billing.
@@ -42,7 +42,7 @@ type SQLBilling struct {
 // NewSQLBilling returns new instance.
 func NewSQLBilling(header *SQLBillingHeader) *SQLBilling {
 	return &SQLBilling{
-		SQLBillingHeader: *header,
+		SQLBillingHeader:     *header,
 		TransactionTypeMixin: *pi.NewTransactionTypeMixin(pi.TransactionTypeSQLBilling),
 	}
 }

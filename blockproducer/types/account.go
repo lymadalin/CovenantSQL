@@ -20,6 +20,7 @@ import (
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
 	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
 	"github.com/CovenantSQL/CovenantSQL/proto"
+	"github.com/CovenantSQL/CovenantSQL/sqlchain/types"
 )
 
 //go:generate hsp
@@ -50,50 +51,67 @@ const (
 	NumberOfUserPermission
 )
 
+// Status defines status of a SQLChain user/miner.
+type Status int32
+
+const (
+	// Normal defines no bad thing happens.
+	Normal Status = iota
+	// Reminder defines the user needs to increase advance payment.
+	Reminder
+	// Arrears defines the user is in arrears.
+	Arrears
+	// Arbitration defines the user/miner is in an arbitration.
+	Arbitration
+)
+
 // SQLChainUser defines a SQLChain user.
 type SQLChainUser struct {
-	Address    proto.AccountAddress
-	Permission UserPermission
-	Pledge uint64
+	Address        proto.AccountAddress
+	Permission     UserPermission
+	AdvancePayment uint64
+	Arrears        uint64
+	Pledge         uint64
+	Status         Status
 }
 
 // MinerInfo defines a miner.
 type MinerInfo struct {
-	address proto.AccountAddress
-	activeAddress proto.AccountAddress
-	name string
-	PendingIncome uint64
+	Address        proto.AccountAddress
+	Name           string
+	PendingIncome  uint64
 	ReceivedIncome uint64
-	Pledge uint64
+	Pledge         uint64
+	Status         Status
 }
 
 // SQLChainProfile defines a SQLChainProfile related to an account.
 type SQLChainProfile struct {
-	ID      proto.DatabaseID
-	Address proto.AccountAddress
-	Period uint64
+	ID       proto.DatabaseID
+	Address  proto.AccountAddress
+	Period   uint64
 	GasPrice uint64
 
-	TokenBalance [SupportTokenNumber]uint64
 	TokenType TokenType
 
-	PayingBalance []uint64
-	PaidBalance []uint64
+	Owner  proto.AccountAddress
+	Miners []*MinerInfo
 
-	Owner   proto.AccountAddress
-	Miners  []*MinerInfo
+	Users []*SQLChainUser
 
-	Users   []*SQLChainUser
+	// TODO(lambda): initial with a better length
+	BlockHeaders []*types.SignedHeader
 }
 
+// ID2Address converts database id to address.
 func (s *SQLChainProfile) ID2Address() {
 	s.Address = proto.AccountAddress(hash.THashH([]byte(s.ID)))
 }
 
 // Account store its balance, and other mate data.
 type Account struct {
-	Address             proto.AccountAddress
-	TokenBalance		[SupportTokenNumber]uint64
-	Rating              float64
-	NextNonce           pi.AccountNonce
+	Address      proto.AccountAddress
+	TokenBalance [SupportTokenNumber]uint64
+	Rating       float64
+	NextNonce    pi.AccountNonce
 }

@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	pt "github.com/CovenantSQL/CovenantSQL/blockproducer/types"
+	"github.com/CovenantSQL/CovenantSQL/crypto"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/CovenantSQL/CovenantSQL/utils"
 	"github.com/coreos/bbolt"
@@ -45,6 +46,16 @@ func safeSub(x, y *uint64) (err error) {
 	return
 }
 
+// safeMul provides a safe mul method with lower overflow check for uint64.
+func safeMul(x, y *uint64) (err error) {
+	result := *x * *y
+	if *x != 0 && result / *x != *y {
+		return ErrBalanceOverflow
+	}
+	*x = result
+	return
+}
+
 type accountObject struct {
 	sync.RWMutex
 	pt.Account
@@ -58,13 +69,13 @@ type sqlchainObject struct {
 type metaIndex struct {
 	sync.RWMutex
 	accounts  map[proto.AccountAddress]*accountObject
-	databases map[proto.DatabaseID]*sqlchainObject
+	databases map[proto.AccountAddress]*sqlchainObject
 }
 
 func newMetaIndex() *metaIndex {
 	return &metaIndex{
 		accounts:  make(map[proto.AccountAddress]*accountObject),
-		databases: make(map[proto.DatabaseID]*sqlchainObject),
+		databases: make(map[proto.AccountAddress]*sqlchainObject),
 	}
 }
 
@@ -83,10 +94,10 @@ func (i *metaIndex) deleteAccountObject(k proto.AccountAddress) {
 func (i *metaIndex) storeSQLChainObject(o *sqlchainObject) {
 	i.Lock()
 	defer i.Unlock()
-	i.databases[o.ID] = o
+	i.databases[o.Address] = o
 }
 
-func (i *metaIndex) deleteSQLChainObject(k proto.DatabaseID) {
+func (i *metaIndex) deleteSQLChainObject(k proto.AccountAddress) {
 	i.Lock()
 	defer i.Unlock()
 	delete(i.databases, k)
@@ -269,24 +280,25 @@ func (i *metaIndex) CreateSQLChain(
 		// Create new sqlchainProfile
 		co = &sqlchainObject{
 			SQLChainProfile: pt.SQLChainProfile{
-				ID:    id,
-				Owner: addr,
+				ID:      id,
+				Address: crypto.DBID2Hash(id),
+				Owner:   addr,
 				Users: []*pt.SQLChainUser{
 					&pt.SQLChainUser{
-						Address: addr,
+						Address:    addr,
 						Permission: pt.Admin,
-						Pledge: pledge,
+						Pledge:     pledge,
 					},
 				},
 			},
 		}
-		i.databases[id] = co
+		i.databases[crypto.DBID2Hash(id)] = co
 		ao.NextNonce++
 
 		if enc, err = utils.EncodeMsgPack(co); err != nil {
 			return
 		}
-		if err = bk.Put([]byte(id), enc.Bytes()); err != nil {
+		if err = bk.Put(co.Address[:], enc.Bytes()); err != nil {
 			return
 		}
 

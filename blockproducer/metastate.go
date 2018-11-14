@@ -22,10 +22,12 @@ import (
 
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
 	pt "github.com/CovenantSQL/CovenantSQL/blockproducer/types"
+	"github.com/CovenantSQL/CovenantSQL/crypto"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/CovenantSQL/CovenantSQL/utils"
 	"github.com/CovenantSQL/CovenantSQL/utils/log"
 	"github.com/coreos/bbolt"
+	"github.com/pkg/errors"
 	"github.com/ulule/deepcopier"
 )
 
@@ -153,7 +155,7 @@ func (s *metaState) storeBaseAccount(k proto.AccountAddress, v *accountObject) (
 	return
 }
 
-func (s *metaState) loadSQLChainObject(k proto.DatabaseID) (o *sqlchainObject, loaded bool) {
+func (s *metaState) loadSQLChainObject(k proto.AccountAddress) (o *sqlchainObject, loaded bool) {
 	s.RLock()
 	defer s.RUnlock()
 	if o, loaded = s.dirty.databases[k]; loaded {
@@ -169,7 +171,7 @@ func (s *metaState) loadSQLChainObject(k proto.DatabaseID) (o *sqlchainObject, l
 }
 
 func (s *metaState) loadOrStoreSQLChainObject(
-	k proto.DatabaseID, v *sqlchainObject) (o *sqlchainObject, loaded bool,
+	k proto.AccountAddress, v *sqlchainObject) (o *sqlchainObject, loaded bool,
 ) {
 	s.Lock()
 	defer s.Unlock()
@@ -190,7 +192,7 @@ func (s *metaState) deleteAccountObject(k proto.AccountAddress) {
 	s.dirty.accounts[k] = nil
 }
 
-func (s *metaState) deleteSQLChainObject(k proto.DatabaseID) {
+func (s *metaState) deleteSQLChainObject(k proto.AccountAddress) {
 	s.Lock()
 	defer s.Unlock()
 	// Use a nil pointer to mark a deletion, which will be later used by commit procedure.
@@ -231,13 +233,13 @@ func (s *metaState) commitProcedure() (_ func(*bolt.Tx) error) {
 				if enc, err = utils.EncodeMsgPack(v.SQLChainProfile); err != nil {
 					return
 				}
-				if err = cb.Put([]byte(k), enc.Bytes()); err != nil {
+				if err = cb.Put(k[:], enc.Bytes()); err != nil {
 					return
 				}
 			} else {
 				// Delete object
 				delete(s.readonly.databases, k)
-				if err = cb.Delete([]byte(k)); err != nil {
+				if err = cb.Delete(k[:]); err != nil {
 					return
 				}
 			}
@@ -306,13 +308,13 @@ func (s *metaState) partialCommitProcedure(txs []pi.Transaction) (_ func(*bolt.T
 				if enc, err = utils.EncodeMsgPack(v.SQLChainProfile); err != nil {
 					return
 				}
-				if err = cb.Put([]byte(k), enc.Bytes()); err != nil {
+				if err = cb.Put(k[:], enc.Bytes()); err != nil {
 					return
 				}
 			} else {
 				// Delete object
 				delete(cm.readonly.databases, k)
-				if err = cb.Delete([]byte(k)); err != nil {
+				if err = cb.Delete(k[:]); err != nil {
 					return
 				}
 			}
@@ -363,7 +365,7 @@ func (s *metaState) reloadProcedure() (_ func(*bolt.Tx) error) {
 			if err = utils.DecodeMsgPack(v, &co.SQLChainProfile); err != nil {
 				return
 			}
-			s.readonly.databases[co.SQLChainProfile.ID] = co
+			s.readonly.databases[co.SQLChainProfile.Address] = co
 			return
 		}); err != nil {
 			return
@@ -519,21 +521,23 @@ func (s *metaState) createSQLChain(addr proto.AccountAddress, id proto.DatabaseI
 			return ErrAccountNotFound
 		}
 	}
-	if _, ok := s.dirty.databases[id]; ok {
+	dbAddr := crypto.DBID2Hash(id)
+	if _, ok := s.dirty.databases[dbAddr]; ok {
 		return ErrDatabaseExists
-	} else if _, ok := s.readonly.databases[id]; ok {
+	} else if _, ok := s.readonly.databases[dbAddr]; ok {
 		return ErrDatabaseExists
 	}
-	s.dirty.databases[id] = &sqlchainObject{
+	s.dirty.databases[dbAddr] = &sqlchainObject{
 		SQLChainProfile: pt.SQLChainProfile{
-			ID:     id,
-			Owner:  addr,
-			Miners: make([]*pt.MinerInfo, 0),
+			ID:      id,
+			Address: dbAddr,
+			Owner:   addr,
+			Miners:  make([]*pt.MinerInfo, 0),
 			Users: []*pt.SQLChainUser{
 				{
 					Address:    addr,
 					Permission: pt.Admin,
-					Pledge: pledge,
+					Pledge:     pledge,
 				},
 			},
 		},
@@ -542,7 +546,7 @@ func (s *metaState) createSQLChain(addr proto.AccountAddress, id proto.DatabaseI
 }
 
 func (s *metaState) addSQLChainUser(
-	k proto.DatabaseID, addr proto.AccountAddress, perm pt.UserPermission) (_ error,
+	dbAddr proto.AccountAddress, addr proto.AccountAddress, perm pt.UserPermission) (_ error,
 ) {
 	s.Lock()
 	defer s.Unlock()
@@ -550,13 +554,14 @@ func (s *metaState) addSQLChainUser(
 		src, dst *sqlchainObject
 		ok       bool
 	)
-	if dst, ok = s.dirty.databases[k]; !ok {
-		if src, ok = s.readonly.databases[k]; !ok {
+
+	if dst, ok = s.dirty.databases[dbAddr]; !ok {
+		if src, ok = s.readonly.databases[dbAddr]; !ok {
 			return ErrDatabaseNotFound
 		}
 		dst = &sqlchainObject{}
 		deepcopier.Copy(&src.SQLChainProfile).To(&dst.SQLChainProfile)
-		s.dirty.databases[k] = dst
+		s.dirty.databases[dbAddr] = dst
 	}
 	for _, v := range dst.Users {
 		if v.Address == addr {
@@ -570,20 +575,21 @@ func (s *metaState) addSQLChainUser(
 	return
 }
 
-func (s *metaState) deleteSQLChainUser(k proto.DatabaseID, addr proto.AccountAddress) error {
+func (s *metaState) deleteSQLChainUser(dbAddr proto.AccountAddress, addr proto.AccountAddress) error {
 	s.Lock()
 	defer s.Unlock()
 	var (
 		src, dst *sqlchainObject
 		ok       bool
 	)
-	if dst, ok = s.dirty.databases[k]; !ok {
-		if src, ok = s.readonly.databases[k]; !ok {
+
+	if dst, ok = s.dirty.databases[dbAddr]; !ok {
+		if src, ok = s.readonly.databases[dbAddr]; !ok {
 			return ErrDatabaseNotFound
 		}
 		dst = &sqlchainObject{}
 		deepcopier.Copy(&src.SQLChainProfile).To(&dst.SQLChainProfile)
-		s.dirty.databases[k] = dst
+		s.dirty.databases[dbAddr] = dst
 	}
 	for i, v := range dst.Users {
 		if v.Address == addr {
@@ -597,7 +603,7 @@ func (s *metaState) deleteSQLChainUser(k proto.DatabaseID, addr proto.AccountAdd
 }
 
 func (s *metaState) alterSQLChainUser(
-	k proto.DatabaseID, addr proto.AccountAddress, perm pt.UserPermission) (_ error,
+	dbAddr proto.AccountAddress, addr proto.AccountAddress, perm pt.UserPermission) (_ error,
 ) {
 	s.Lock()
 	defer s.Unlock()
@@ -605,13 +611,14 @@ func (s *metaState) alterSQLChainUser(
 		src, dst *sqlchainObject
 		ok       bool
 	)
-	if dst, ok = s.dirty.databases[k]; !ok {
-		if src, ok = s.readonly.databases[k]; !ok {
+
+	if dst, ok = s.dirty.databases[dbAddr]; !ok {
+		if src, ok = s.readonly.databases[dbAddr]; !ok {
 			return ErrDatabaseNotFound
 		}
 		dst = &sqlchainObject{}
 		deepcopier.Copy(&src.SQLChainProfile).To(&dst.SQLChainProfile)
-		s.dirty.databases[k] = dst
+		s.dirty.databases[dbAddr] = dst
 	}
 	for _, v := range dst.Users {
 		if v.Address == addr {
@@ -676,12 +683,116 @@ func (s *metaState) applyBilling(tx *pt.Billing) (err error) {
 	return
 }
 
+func (s *metaState) applySQLBilling(tx *pt.SQLBilling) (err error) {
+	sqlChainObj, ok := s.loadSQLChainObject(tx.TargetSQLChain)
+	if !ok {
+		err = errors.Wrap(ErrDatabaseNotFound, "load sql chain obj")
+		return
+	}
+
+	sqlChainObj.Lock()
+	defer sqlChainObj.Unlock()
+
+	err = checkAndCacheSQLBlock(tx, sqlChainObj)
+	if err != nil {
+		err = errors.Wrap(err, "check failed in applySQLBilling")
+	}
+
+	// append block
+	sqlChainObj.BlockHeaders = append(sqlChainObj.BlockHeaders, tx.SQLChainHeaders...)
+
+	// update user's payment and miners' income
+	userMap := make(map[proto.AccountAddress]uint64)
+	minerMap := make(map[proto.AccountAddress]uint64)
+	for _, user := range sqlChainObj.Users {
+		userMap[user.Address] = user.AdvancePayment
+	}
+	for _, block := range tx.SQLChainHeaders {
+		for _, fee := range block.Fees {
+			if err = safeMul(&fee.QueryCost, &sqlChainObj.GasPrice); err != nil {
+				err = errors.Wrapf(err, "overflow when computing query cost")
+				return
+			}
+			if err = safeMul(&fee.StorageCost, &sqlChainObj.GasPrice); err != nil {
+				err = errors.Wrapf(err, "overflow when computing storage cost")
+				return
+			}
+
+			// TODO(lambda): add arrears
+			amount := userMap[fee.User]
+			if err = safeSub(&amount, &fee.QueryCost); err != nil {
+				log.WithError(err).Info("overflow when computing amount for user")
+				fee.QueryCost = amount
+			}
+			userMap[fee.User] = amount
+
+			amount = minerMap[fee.Miner]
+			if err = safeAdd(&amount, &fee.QueryCost); err != nil {
+				err = errors.Wrapf(err, "overflow when computing amount for miner")
+				return
+			}
+			minerMap[fee.Miner] = amount
+		}
+	}
+	// write to sqlChainObj
+	for _, user := range sqlChainObj.Users {
+		user.AdvancePayment = userMap[user.Address]
+	}
+
+	for _, miner := range sqlChainObj.Miners {
+		miner.ReceivedIncome += miner.PendingIncome
+		miner.PendingIncome = minerMap[miner.Address]
+	}
+
+	// TODO(lambda): persistence
+	return nil
+}
+
+func checkAndCacheSQLBlock(tx *pt.SQLBilling, sqlChainObj *sqlchainObject) (err error) {
+	// TODO(lambda): check period of tx
+	lastBlock := sqlChainObj.BlockHeaders[len(sqlChainObj.BlockHeaders)-1]
+	if lastBlock.BlockHash != tx.SQLChainHeaders[0].ParentHash {
+		err = errors.Wrap(ErrParentNotMatch, "check new tx")
+		log.WithFields(log.Fields{
+			"parent_hash_from_obj": lastBlock.BlockHash.String(),
+			"parent_hash_from_tx":  tx.SQLChainHeaders[0].ParentHash.String(),
+		}).WithError(err).Info("Unexpected error")
+		return
+	}
+
+	bound := len(tx.SQLChainHeaders) - 1
+	var i = 0
+	for ; i < bound; i++ {
+		err = tx.SQLChainHeaders[i].Verify()
+		if err != nil {
+			err = errors.Wrap(err, "check signature in checkSQLBilling")
+			return
+		}
+		if tx.SQLChainHeaders[i+1].ParentHash != tx.SQLChainHeaders[i].BlockHash {
+			err = errors.Wrap(ErrParentNotMatch, "check new tx in checkSQLBilling")
+			log.WithFields(log.Fields{
+				"parent_hash_from_obj": lastBlock.BlockHash.String(),
+				"parent_hash_from_tx":  tx.SQLChainHeaders[0].ParentHash.String(),
+			}).WithError(err).Info("Unexpected error")
+			return
+		}
+	}
+	if err = tx.SQLChainHeaders[i].Verify(); err != nil {
+		err = errors.Wrap(err, "check signature in checkSQLBilling")
+		return
+	}
+
+	return
+}
+
 func (s *metaState) applyTransaction(tx pi.Transaction) (err error) {
 	switch t := tx.(type) {
 	case *pt.Transfer:
 		err = s.transferAccountStableBalance(t.Sender, t.Receiver, t.Amount)
 	case *pt.Billing:
 		err = s.applyBilling(t)
+	case *pt.SQLBilling:
+		err = s.applySQLBilling(t)
 	case *pt.BaseAccount:
 		err = s.storeBaseAccount(t.Address, &accountObject{Account: t.Account})
 	case *pi.TransactionWrapper:

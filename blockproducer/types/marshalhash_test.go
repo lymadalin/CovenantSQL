@@ -10,9 +10,9 @@ import (
 
 func TestMarshalHashAccountStable(t *testing.T) {
 	v := Account{
-		Address:             proto.AccountAddress{0x10},
-		Rating:              1110,
-		NextNonce:           1,
+		Address:   proto.AccountAddress{0x10},
+		Rating:    1110,
+		NextNonce: 1,
 	}
 	v.TokenBalance[Particle] = 10
 	v.TokenBalance[Wave] = 10
@@ -31,9 +31,9 @@ func TestMarshalHashAccountStable(t *testing.T) {
 
 func TestMarshalHashAccountStable2(t *testing.T) {
 	v1 := Account{
-		Address:             proto.AccountAddress{0x10},
-		Rating:              1110,
-		NextNonce:           1,
+		Address:   proto.AccountAddress{0x10},
+		Rating:    1110,
+		NextNonce: 1,
 	}
 	v1.TokenBalance[Particle] = 10
 	v1.TokenBalance[Wave] = 10

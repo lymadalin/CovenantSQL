@@ -72,3 +72,9 @@ func Addr2Hash(addr string) (version byte, internalAddr proto.AccountAddress, er
 func Hash2Addr(addr proto.AccountAddress, version byte) string {
 	return base58.CheckEncode(addr[:], version)
 }
+
+// DBID2Hash converts database ID to internal account address hash.
+func DBID2Hash(dbid proto.DatabaseID) (internalAddr proto.AccountAddress) {
+	internalAddr = proto.AccountAddress(hash.THashH([]byte(dbid)))
+	return
+}

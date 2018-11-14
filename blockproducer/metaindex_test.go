@@ -23,6 +23,7 @@ import (
 
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
 	pt "github.com/CovenantSQL/CovenantSQL/blockproducer/types"
+	"github.com/CovenantSQL/CovenantSQL/crypto"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/coreos/bbolt"
 	. "github.com/smartystreets/goconvey/convey"
@@ -87,32 +88,34 @@ func TestMetaIndex(t *testing.T) {
 		Convey("When database objects are stored", func() {
 			mi.storeSQLChainObject(&sqlchainObject{
 				SQLChainProfile: pt.SQLChainProfile{
-					ID: dbid1,
+					ID:      dbid1,
+					Address: crypto.DBID2Hash(dbid1),
 				},
 			})
 			mi.storeSQLChainObject(&sqlchainObject{
 				SQLChainProfile: pt.SQLChainProfile{
-					ID: dbid2,
+					ID:      dbid2,
+					Address: crypto.DBID2Hash(dbid2),
 				},
 			})
 			Convey("The database objects should be retrievable", func() {
-				co, loaded = mi.databases[dbid1]
+				co, loaded = mi.databases[crypto.DBID2Hash(dbid1)]
 				So(loaded, ShouldBeTrue)
 				So(co, ShouldNotBeNil)
 				So(co.ID, ShouldEqual, dbid1)
-				co, loaded = mi.databases[dbid2]
+				co, loaded = mi.databases[crypto.DBID2Hash(dbid2)]
 				So(loaded, ShouldBeTrue)
 				So(co, ShouldNotBeNil)
 				So(co.ID, ShouldEqual, dbid2)
 			})
 			Convey("When database objects are deleted", func() {
-				mi.deleteSQLChainObject(dbid1)
-				mi.deleteSQLChainObject(dbid2)
+				mi.deleteSQLChainObject(crypto.DBID2Hash(dbid1))
+				mi.deleteSQLChainObject(crypto.DBID2Hash(dbid2))
 				Convey("The acount objects should not be retrievable anymore", func() {
-					co, loaded = mi.databases[dbid1]
+					co, loaded = mi.databases[crypto.DBID2Hash(dbid1)]
 					So(loaded, ShouldBeFalse)
 					So(co, ShouldBeNil)
-					co, loaded = mi.databases[dbid2]
+					co, loaded = mi.databases[crypto.DBID2Hash(dbid2)]
 					So(loaded, ShouldBeFalse)
 					So(co, ShouldBeNil)
 				})
@@ -121,13 +124,13 @@ func TestMetaIndex(t *testing.T) {
 		Convey("When account objects are stored", func() {
 			mi.storeAccountObject(&accountObject{
 				Account: pt.Account{
-					Address:             addr1,
+					Address:      addr1,
 					TokenBalance: [pt.SupportTokenNumber]uint64{10, 10},
 				},
 			})
 			mi.storeAccountObject(&accountObject{
 				Account: pt.Account{
-					Address:             addr2,
+					Address:      addr2,
 					TokenBalance: [pt.SupportTokenNumber]uint64{10, 10},
 				},
 			})

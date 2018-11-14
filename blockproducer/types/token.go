@@ -36,13 +36,13 @@ const (
 	SupportTokenNumber
 )
 
-// Token defines token's number.
+// TokenList lists supporting token.
 var TokenList = map[TokenType]string{
 	Particle: "Particle",
-	Wave: "Wave",
-	Ether: "Ether",
-	EOS: "EOS",
-	Bitcoin: "Bitcoin",
+	Wave:     "Wave",
+	Ether:    "Ether",
+	EOS:      "EOS",
+	Bitcoin:  "Bitcoin",
 }
 
 // String returns token's symbol.
@@ -56,7 +56,7 @@ func (t TokenType) String() string {
 
 // FromString returns token's number.
 func FromString(t string) TokenType {
-	var i TokenType = 0
+	var i TokenType
 	for ; i < SupportTokenNumber; i++ {
 		if TokenList[i] == t {
 			return i
@@ -68,9 +68,4 @@ func FromString(t string) TokenType {
 // Listed returns if the token is listed in list.
 func (t *TokenType) Listed() bool {
 	return (*t) >= 0 && *t < SupportTokenNumber
-}
-
-type TokenBalance struct {
-	Token TokenType
-	Balance uint64
 }

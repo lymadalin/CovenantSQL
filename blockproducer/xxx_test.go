@@ -117,13 +117,13 @@ func generateRandomBlock(parent hash.Hash, isGenesis bool) (b *pt.Block, err err
 		var (
 			ba1 = pt.NewBaseAccount(
 				&pt.Account{
-					Address:             testAddress1,
+					Address:      testAddress1,
 					TokenBalance: [pt.SupportTokenNumber]uint64{testInitBalance, testInitBalance},
 				},
 			)
 			ba2 = pt.NewBaseAccount(
 				&pt.Account{
-					Address:             testAddress2,
+					Address:      testAddress2,
 					TokenBalance: [pt.SupportTokenNumber]uint64{testInitBalance, testInitBalance},
 				},
 			)
@@ -276,7 +276,7 @@ func generateRandomBillingAndBaseAccount() (*pt.BaseAccount, *pt.Billing, error)
 
 	txBaseAccount := pt.NewBaseAccount(
 		&pt.Account{
-			Address:             header.Producer,
+			Address:      header.Producer,
 			TokenBalance: [pt.SupportTokenNumber]uint64{testInitBalance, testInitBalance},
 		},
 	)

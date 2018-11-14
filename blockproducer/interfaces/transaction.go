@@ -63,7 +63,7 @@ const (
 	TransactionTypeBaseAccount
 	// TransactionTypeCreateDatabase defines database creation transaction type.
 	TransactionTypeCreateDatabase
-	// TransactionTypeSQLBilling
+	// TransactionTypeSQLBilling defines SQL billing type.
 	TransactionTypeSQLBilling
 	// TransactionTypeNumber defines transaction types number.
 	TransactionTypeNumber

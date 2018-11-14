@@ -65,9 +65,9 @@ func generateRandomAccountAddresses(n int) (s []proto.AccountAddress) {
 
 func generateRandomAccount() *Account {
 	return &Account{
-		Address:             proto.AccountAddress(generateRandomHash()),
+		Address:      proto.AccountAddress(generateRandomHash()),
 		TokenBalance: [SupportTokenNumber]uint64{rand.Uint64(), rand.Uint64()},
-		Rating:              rand.Float64(),
+		Rating:       rand.Float64(),
 	}
 }
 

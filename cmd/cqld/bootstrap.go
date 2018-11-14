@@ -287,7 +287,7 @@ func loadGenesis() *types.Block {
 		}).Debug("setting one balance fixture in genesis block")
 		genesis.Transactions = append(genesis.Transactions, pt.NewBaseAccount(
 			&pt.Account{
-				Address:             proto.AccountAddress(ba.Address),
+				Address:      proto.AccountAddress(ba.Address),
 				TokenBalance: [pt.SupportTokenNumber]uint64{10, 10},
 			}))
 	}

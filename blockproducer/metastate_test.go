@@ -24,6 +24,7 @@ import (
 
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
 	pt "github.com/CovenantSQL/CovenantSQL/blockproducer/types"
+	"github.com/CovenantSQL/CovenantSQL/crypto"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/coreos/bbolt"
 	. "github.com/smartystreets/goconvey/convey"
@@ -42,6 +43,9 @@ func TestMetaState(t *testing.T) {
 			dbid1   = proto.DatabaseID("db#1")
 			dbid2   = proto.DatabaseID("db#2")
 			dbid3   = proto.DatabaseID("db#3")
+			dbaddr1 = crypto.DBID2Hash(dbid1)
+			dbaddr2 = crypto.DBID2Hash(dbid2)
+			dbaddr3 = crypto.DBID2Hash(dbid3)
 			ms      = newMetaState()
 			fl      = path.Join(testDataDir, t.Name())
 			db, err = bolt.Open(fl, 0600, nil)
@@ -86,7 +90,7 @@ func TestMetaState(t *testing.T) {
 			So(loaded, ShouldBeFalse)
 		})
 		Convey("The database state should be empty", func() {
-			co, loaded = ms.loadSQLChainObject(dbid1)
+			co, loaded = ms.loadSQLChainObject(crypto.DBID2Hash(dbid1))
 			So(co, ShouldBeNil)
 			So(loaded, ShouldBeFalse)
 		})
@@ -99,11 +103,11 @@ func TestMetaState(t *testing.T) {
 		Convey("The metaState should failed to operate SQLChain for unknown user", func() {
 			err = ms.createSQLChain(addr1, dbid1, 0)
 			So(err, ShouldEqual, ErrAccountNotFound)
-			err = ms.addSQLChainUser(dbid1, addr1, pt.Admin)
+			err = ms.addSQLChainUser(dbaddr1, addr1, pt.Admin)
 			So(err, ShouldEqual, ErrDatabaseNotFound)
-			err = ms.deleteSQLChainUser(dbid1, addr1)
+			err = ms.deleteSQLChainUser(dbaddr1, addr1)
 			So(err, ShouldEqual, ErrDatabaseNotFound)
-			err = ms.alterSQLChainUser(dbid1, addr1, pt.ReadWrite)
+			err = ms.alterSQLChainUser(dbaddr1, addr1, pt.ReadWrite)
 			So(err, ShouldEqual, ErrDatabaseNotFound)
 		})
 		Convey("When new account and database objects are stored", func() {
@@ -121,16 +125,18 @@ func TestMetaState(t *testing.T) {
 			})
 			So(ao, ShouldBeNil)
 			So(loaded, ShouldBeFalse)
-			co, loaded = ms.loadOrStoreSQLChainObject(dbid1, &sqlchainObject{
+			co, loaded = ms.loadOrStoreSQLChainObject(dbaddr1, &sqlchainObject{
 				SQLChainProfile: pt.SQLChainProfile{
-					ID: dbid1,
+					ID:      dbid1,
+					Address: dbaddr1,
 				},
 			})
 			So(co, ShouldBeNil)
 			So(loaded, ShouldBeFalse)
-			co, loaded = ms.loadOrStoreSQLChainObject(dbid2, &sqlchainObject{
+			co, loaded = ms.loadOrStoreSQLChainObject(dbaddr2, &sqlchainObject{
 				SQLChainProfile: pt.SQLChainProfile{
-					ID: dbid2,
+					ID:      dbid2,
+					Address: dbaddr2,
 				},
 			})
 			So(co, ShouldBeNil)
@@ -144,11 +150,11 @@ func TestMetaState(t *testing.T) {
 				So(loaded, ShouldBeTrue)
 				So(ao, ShouldNotBeNil)
 				So(ao.Address, ShouldEqual, addr1)
-				co, loaded = ms.loadSQLChainObject(dbid1)
+				co, loaded = ms.loadSQLChainObject(dbaddr1)
 				So(loaded, ShouldBeTrue)
 				So(co, ShouldNotBeNil)
 				So(co.ID, ShouldEqual, dbid1)
-				co, loaded = ms.loadOrStoreSQLChainObject(dbid1, nil)
+				co, loaded = ms.loadOrStoreSQLChainObject(dbaddr1, nil)
 				So(loaded, ShouldBeTrue)
 				So(co, ShouldNotBeNil)
 				So(co.ID, ShouldEqual, dbid1)
@@ -167,35 +173,35 @@ func TestMetaState(t *testing.T) {
 					So(err, ShouldEqual, ErrDatabaseExists)
 				})
 				Convey("When new SQLChain users are added", func() {
-					err = ms.addSQLChainUser(dbid3, addr2, pt.ReadWrite)
+					err = ms.addSQLChainUser(dbaddr3, addr2, pt.ReadWrite)
 					So(err, ShouldBeNil)
-					err = ms.addSQLChainUser(dbid3, addr2, pt.ReadWrite)
+					err = ms.addSQLChainUser(dbaddr3, addr2, pt.ReadWrite)
 					So(err, ShouldEqual, ErrDatabaseUserExists)
 					Convey("The metaState object should be ok to delete user", func() {
-						err = ms.deleteSQLChainUser(dbid3, addr2)
+						err = ms.deleteSQLChainUser(dbaddr3, addr2)
 						So(err, ShouldBeNil)
-						err = ms.deleteSQLChainUser(dbid3, addr2)
+						err = ms.deleteSQLChainUser(dbaddr3, addr2)
 						So(err, ShouldBeNil)
 					})
 					Convey("The metaState object should be ok to alter user", func() {
-						err = ms.alterSQLChainUser(dbid3, addr2, pt.Read)
+						err = ms.alterSQLChainUser(dbaddr3, addr2, pt.Read)
 						So(err, ShouldBeNil)
-						err = ms.alterSQLChainUser(dbid3, addr2, pt.ReadWrite)
+						err = ms.alterSQLChainUser(dbaddr3, addr2, pt.ReadWrite)
 						So(err, ShouldBeNil)
 					})
 					Convey("When metaState change is committed", func() {
 						err = db.Update(ms.commitProcedure())
 						So(err, ShouldBeNil)
 						Convey("The metaState object should be ok to delete user", func() {
-							err = ms.deleteSQLChainUser(dbid3, addr2)
+							err = ms.deleteSQLChainUser(dbaddr3, addr2)
 							So(err, ShouldBeNil)
-							err = ms.deleteSQLChainUser(dbid3, addr2)
+							err = ms.deleteSQLChainUser(dbaddr3, addr2)
 							So(err, ShouldBeNil)
 						})
 						Convey("The metaState object should be ok to alter user", func() {
-							err = ms.alterSQLChainUser(dbid3, addr2, pt.Read)
+							err = ms.alterSQLChainUser(dbaddr3, addr2, pt.Read)
 							So(err, ShouldBeNil)
-							err = ms.alterSQLChainUser(dbid3, addr2, pt.ReadWrite)
+							err = ms.alterSQLChainUser(dbaddr3, addr2, pt.ReadWrite)
 							So(err, ShouldBeNil)
 						})
 					})
@@ -204,9 +210,9 @@ func TestMetaState(t *testing.T) {
 					err = db.Update(ms.commitProcedure())
 					So(err, ShouldBeNil)
 					Convey("The metaState object should be ok to add users for database", func() {
-						err = ms.addSQLChainUser(dbid3, addr2, pt.ReadWrite)
+						err = ms.addSQLChainUser(dbaddr3, addr2, pt.ReadWrite)
 						So(err, ShouldBeNil)
-						err = ms.addSQLChainUser(dbid3, addr2, pt.ReadWrite)
+						err = ms.addSQLChainUser(dbaddr3, addr2, pt.ReadWrite)
 						So(err, ShouldEqual, ErrDatabaseUserExists)
 					})
 					Convey("The metaState object should report database exists", func() {
@@ -223,7 +229,7 @@ func TestMetaState(t *testing.T) {
 					So(loaded, ShouldBeFalse)
 				})
 				Convey("The database state should be empty", func() {
-					co, loaded = ms.loadSQLChainObject(dbid1)
+					co, loaded = ms.loadSQLChainObject(dbaddr1)
 					So(co, ShouldBeNil)
 					So(loaded, ShouldBeFalse)
 				})
@@ -384,10 +390,10 @@ func TestMetaState(t *testing.T) {
 			Convey("When a new database key slot is overwritten", func() {
 				err = db.Update(func(tx *bolt.Tx) (err error) {
 					var bucket = tx.Bucket(metaBucket[:]).Bucket(metaSQLChainIndexBucket)
-					if err = bucket.Delete([]byte(dbid1)); err != nil {
+					if err = bucket.Delete(dbaddr1[:]); err != nil {
 						return
 					}
-					if _, err = bucket.CreateBucket([]byte(dbid1)); err != nil {
+					if _, err = bucket.CreateBucket(dbaddr1[:]); err != nil {
 						return
 					}
 					return
@@ -407,9 +413,9 @@ func TestMetaState(t *testing.T) {
 					So(loaded, ShouldBeTrue)
 					_, loaded = ms.loadOrStoreAccountObject(addr1, nil)
 					So(loaded, ShouldBeTrue)
-					_, loaded = ms.loadSQLChainObject(dbid1)
+					_, loaded = ms.loadSQLChainObject(dbaddr1)
 					So(loaded, ShouldBeTrue)
-					_, loaded = ms.loadOrStoreSQLChainObject(dbid2, nil)
+					_, loaded = ms.loadOrStoreSQLChainObject(dbaddr2, nil)
 					So(loaded, ShouldBeTrue)
 				})
 				Convey("The metaState should be reproducible from the persistence db", func() {
@@ -435,16 +441,16 @@ func TestMetaState(t *testing.T) {
 					So(ra2, ShouldNotBeNil)
 					So(&oa1.Account, ShouldResemble, &ra1.Account)
 					So(&oa2.Account, ShouldResemble, &ra2.Account)
-					oc1, loaded = ms.loadSQLChainObject(dbid1)
+					oc1, loaded = ms.loadSQLChainObject(dbaddr1)
 					So(loaded, ShouldBeTrue)
 					So(oc1, ShouldNotBeNil)
-					oc2, loaded = ms.loadSQLChainObject(dbid2)
+					oc2, loaded = ms.loadSQLChainObject(dbaddr2)
 					So(loaded, ShouldBeTrue)
 					So(oc2, ShouldNotBeNil)
-					rc1, loaded = rms.loadSQLChainObject(dbid1)
+					rc1, loaded = rms.loadSQLChainObject(dbaddr1)
 					So(loaded, ShouldBeTrue)
 					So(rc1, ShouldNotBeNil)
-					rc2, loaded = rms.loadSQLChainObject(dbid2)
+					rc2, loaded = rms.loadSQLChainObject(dbaddr2)
 					So(loaded, ShouldBeTrue)
 					So(rc2, ShouldNotBeNil)
 					So(&oc1.SQLChainProfile, ShouldResemble, &rc1.SQLChainProfile)
@@ -468,7 +474,7 @@ func TestMetaState(t *testing.T) {
 				Convey("When the some sqlchainObject is corrupted", func() {
 					err = db.Update(func(tx *bolt.Tx) (err error) {
 						return tx.Bucket(metaBucket[:]).Bucket(metaSQLChainIndexBucket).Put(
-							[]byte(dbid1), []byte{0x1, 0x2, 0x3, 0x4a},
+							dbaddr1[:], []byte{0x1, 0x2, 0x3, 0x4a},
 						)
 					})
 					So(err, ShouldBeNil)
@@ -482,11 +488,11 @@ func TestMetaState(t *testing.T) {
 				})
 				Convey("When some objects are deleted", func() {
 					ms.deleteAccountObject(addr1)
-					ms.deleteSQLChainObject(dbid1)
+					ms.deleteSQLChainObject(dbaddr1)
 					Convey("The dirty map should return deleted states of these objects", func() {
 						_, loaded = ms.loadAccountObject(addr1)
 						So(loaded, ShouldBeFalse)
-						_, loaded = ms.loadSQLChainObject(dbid1)
+						_, loaded = ms.loadSQLChainObject(dbaddr1)
 						So(loaded, ShouldBeFalse)
 					})
 					Convey("When the deleted account key slot is overwritten", func() {
@@ -509,10 +515,10 @@ func TestMetaState(t *testing.T) {
 					Convey("When the deleted database key slot is overwritten", func() {
 						err = db.Update(func(tx *bolt.Tx) (err error) {
 							var bucket = tx.Bucket(metaBucket[:]).Bucket(metaSQLChainIndexBucket)
-							if err = bucket.Delete([]byte(dbid1)); err != nil {
+							if err = bucket.Delete(dbaddr1[:]); err != nil {
 								return
 							}
-							if _, err = bucket.CreateBucket([]byte(dbid1)); err != nil {
+							if _, err = bucket.CreateBucket(dbaddr1[:]); err != nil {
 								return
 							}
 							return
@@ -550,16 +556,16 @@ func TestMetaState(t *testing.T) {
 								So(loaded, ShouldBeTrue)
 								So(ra2, ShouldNotBeNil)
 								So(&oa2.Account, ShouldResemble, &ra2.Account)
-								oc1, loaded = ms.loadSQLChainObject(dbid1)
+								oc1, loaded = ms.loadSQLChainObject(dbaddr1)
 								So(loaded, ShouldBeFalse)
 								So(oc1, ShouldBeNil)
-								oc2, loaded = ms.loadSQLChainObject(dbid2)
+								oc2, loaded = ms.loadSQLChainObject(dbaddr2)
 								So(loaded, ShouldBeTrue)
 								So(oc2, ShouldNotBeNil)
-								rc1, loaded = rms.loadSQLChainObject(dbid1)
+								rc1, loaded = rms.loadSQLChainObject(dbaddr1)
 								So(loaded, ShouldBeFalse)
 								So(rc1, ShouldBeNil)
-								rc2, loaded = rms.loadSQLChainObject(dbid2)
+								rc2, loaded = rms.loadSQLChainObject(dbaddr2)
 								So(loaded, ShouldBeTrue)
 								So(rc2, ShouldNotBeNil)
 								So(&oc2.SQLChainProfile, ShouldResemble, &rc2.SQLChainProfile)
@@ -694,13 +700,13 @@ func TestMetaState(t *testing.T) {
 				txs = []pi.Transaction{
 					pt.NewBaseAccount(
 						&pt.Account{
-							Address:             addr1,
+							Address:      addr1,
 							TokenBalance: [pt.SupportTokenNumber]uint64{100, 100},
 						},
 					),
 					pt.NewBaseAccount(
 						&pt.Account{
-							Address:             addr2,
+							Address:      addr2,
 							TokenBalance: [pt.SupportTokenNumber]uint64{100, 100},
 						},
 					),

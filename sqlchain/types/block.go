@@ -32,10 +32,10 @@ import (
 
 // Fee is paid by users and received by miner
 type Fee struct {
-	QueryCost uint64
+	QueryCost   uint64
 	StorageCost uint64
-	Miner proto.AccountAddress
-	User proto.AccountAddress
+	Miner       proto.AccountAddress
+	User        proto.AccountAddress
 }
 
 // Header is a block header.
@@ -46,7 +46,7 @@ type Header struct {
 	ParentHash  hash.Hash
 	MerkleRoot  hash.Hash
 	Timestamp   time.Time
-	Fees []*Fee
+	Fees        []*Fee
 }
 
 //// MarshalHash marshals for hash
