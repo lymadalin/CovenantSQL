@@ -62,6 +62,12 @@ func EncodeMsgPack(in interface{}) (*bytes.Buffer, error) {
 	return buf, err
 }
 
+// EncodeMsgPackPlain writes an encoded object to a bytes slice.
+func EncodeMsgPackPlain(in interface{}) (out []byte, err error) {
+	err = codec.NewEncoderBytes(&out, msgPackHandle).Encode(in)
+	return
+}
+
 // GetMsgPackServerCodec returns msgpack server codec for connection.
 func GetMsgPackServerCodec(c net.Conn) rpc.ServerCodec {
 	return codec.MsgpackSpecRpc.ServerCodec(c, msgPackHandle)
