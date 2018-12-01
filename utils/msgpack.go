@@ -44,6 +44,12 @@ func DecodeMsgPack(buf []byte, out interface{}) error {
 	return dec.Decode(out)
 }
 
+// DecodeMsgPackFromBuffer reverses encode operation on buff.
+func DecodeMsgPackFromBuffer(buff *bytes.Reader, out interface{}) (err error) {
+	err = codec.NewDecoder(buff, msgPackHandle).Decode(out)
+	return
+}
+
 // DecodeMsgPackPlain reverses the encode operation on a byte slice input without RawToString setting.
 func DecodeMsgPackPlain(buf []byte, out interface{}) error {
 	r := bytes.NewBuffer(buf)
@@ -60,6 +66,12 @@ func EncodeMsgPack(in interface{}) (*bytes.Buffer, error) {
 	enc := codec.NewEncoder(buf, msgPackHandle)
 	err := enc.Encode(in)
 	return buf, err
+}
+
+// EncodeMsgPackToBuffer writes an encoded object to buff.
+func EncodeMsgPackToBuffer(buff *bytes.Buffer, in interface{}) (err error) {
+	err = codec.NewEncoder(buff, msgPackHandle).Encode(in)
+	return
 }
 
 // EncodeMsgPackPlain writes an encoded object to a bytes slice.
