@@ -84,4 +84,7 @@ var (
 	ErrInvalidPermission = errors.New("invalid permission")
 	// ErrMinerUserNotMatch indicates that the miner and user do not match.
 	ErrMinerUserNotMatch = errors.New("miner and user do not match")
+
+	// ErrUnknownChainOPType indicates that the operation type is unknow to state handler.
+	ErrUnknownChainOPType = errors.New("unknown chain OP type")
 )

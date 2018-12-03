@@ -29,6 +29,7 @@ import (
 	"github.com/CovenantSQL/CovenantSQL/crypto/asymmetric"
 	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
 	"github.com/CovenantSQL/CovenantSQL/crypto/kms"
+	"github.com/CovenantSQL/CovenantSQL/kayak"
 	"github.com/CovenantSQL/CovenantSQL/merkle"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/CovenantSQL/CovenantSQL/route"
@@ -36,6 +37,7 @@ import (
 	"github.com/CovenantSQL/CovenantSQL/types"
 	"github.com/CovenantSQL/CovenantSQL/utils"
 	"github.com/CovenantSQL/CovenantSQL/utils/log"
+	xi "github.com/CovenantSQL/CovenantSQL/xenomint/interfaces"
 	"github.com/coreos/bbolt"
 	"github.com/pkg/errors"
 )
@@ -61,6 +63,8 @@ type Chain struct {
 	rt *rt
 	cl *rpc.Caller
 	bs chainbus.Bus
+	st xi.Storage
+	ka *kayak.Runtime
 
 	blocksFromRPC chan *types.BPBlock
 	pendingTxs    chan pi.Transaction
