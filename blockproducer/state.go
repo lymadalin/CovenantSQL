@@ -36,7 +36,7 @@ type State struct {
 }
 
 // EncodePayload implements EncodePayload of kayak/types.Handler.
-func (_ *Chain) EncodePayload(request interface{}) (data []byte, err error) {
+func (*Chain) EncodePayload(request interface{}) (data []byte, err error) {
 	var (
 		ierr error
 		t    uint32
@@ -69,7 +69,7 @@ func (_ *Chain) EncodePayload(request interface{}) (data []byte, err error) {
 }
 
 // DecodePayload implements DecodePayload of kayak/types.Handler.
-func (_ *Chain) DecodePayload(data []byte) (request interface{}, err error) {
+func (*Chain) DecodePayload(data []byte) (request interface{}, err error) {
 	var (
 		ierr error
 		t    uint32
@@ -135,6 +135,9 @@ func (c *Chain) Commit(rawReq interface{}) (result interface{}, err error) {
 			return
 		}
 	case pi.Transaction:
+		if qs, ierr = TxToQueries(r); ierr != nil {
+			return
+		}
 	default:
 		err = errors.Wrapf(ErrUnknownChainOPType, "%v", rawReq)
 		return
@@ -165,6 +168,14 @@ func (c *Chain) Commit(rawReq interface{}) (result interface{}, err error) {
 	return
 }
 
+// BlockToQueries converts block to queries for state storage.
 func BlockToQueries(b *types.Block) (qs []*types.Query, err error) {
+	// TODO(leventeliu)
+	return
+}
+
+// TxToQueries converts tx to queries for state storage.
+func TxToQueries(tx pi.Transaction) (qs []*types.Query, err error) {
+	// TODO(leventeliu)
 	return
 }
