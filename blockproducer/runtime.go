@@ -105,6 +105,7 @@ func newRuntime(ctx context.Context, cfg *Config, accountAddress proto.AccountAd
 
 func (r *rt) startService(chain *Chain) {
 	r.server.RegisterService(route.BlockProducerRPCName, &ChainRPCService{chain: chain})
+	r.server.RegisterService("Kayak", &chain.ka)
 }
 
 // nextTick returns the current clock reading and the duration till the next turn. If duration

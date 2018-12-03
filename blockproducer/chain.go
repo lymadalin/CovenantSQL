@@ -30,6 +30,8 @@ import (
 	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
 	"github.com/CovenantSQL/CovenantSQL/crypto/kms"
 	"github.com/CovenantSQL/CovenantSQL/kayak"
+	kt "github.com/CovenantSQL/CovenantSQL/kayak/types"
+	kl "github.com/CovenantSQL/CovenantSQL/kayak/wal"
 	"github.com/CovenantSQL/CovenantSQL/merkle"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/CovenantSQL/CovenantSQL/route"
@@ -38,11 +40,27 @@ import (
 	"github.com/CovenantSQL/CovenantSQL/utils"
 	"github.com/CovenantSQL/CovenantSQL/utils/log"
 	xi "github.com/CovenantSQL/CovenantSQL/xenomint/interfaces"
+	xs "github.com/CovenantSQL/CovenantSQL/xenomint/sqlite"
 	"github.com/coreos/bbolt"
 	"github.com/pkg/errors"
 )
 
 var (
+	ddls = [...]string{
+		`CREATE TABLE IF NOT EXIST "blocks" (
+	"height"	INT,
+	"hash"		TEXT,
+	"parent"	TEXT,
+	"encoded"	BLOB,
+	PRIMARY KEY ("height", "hash")
+)`,
+		`CREATE TABLE IF NOT EXIST "txPool" (
+	"type"		INT,
+	"hash"		TEXT,
+	"encoded"	BLOB,
+	PRIMARY KEY ("type")
+)`,
+	}
 	metaBucket                     = [4]byte{0x0, 0x0, 0x0, 0x0}
 	metaStateKey                   = []byte("covenantsql-state")
 	metaBlockIndexBucket           = []byte("covenantsql-block-index-bucket")
@@ -138,7 +156,18 @@ func NewChain(cfg *Config) (*Chain, error) {
 		bus    = chainbus.New()
 		caller = rpc.NewCaller()
 		ctx    = context.Background()
+		strg   xi.Storage
 	)
+
+	if strg, err = xs.NewSqlite(fmt.Sprintf("file:%s-xeno", cfg.DataFile)); err != nil {
+		return nil, err
+	}
+
+	for _, ddl := range ddls {
+		if _, err = strg.Writer().Exec(ddl); err != nil {
+			return nil, err
+		}
+	}
 
 	chain := &Chain{
 		db:            db,
@@ -150,7 +179,36 @@ func NewChain(cfg *Config) (*Chain, error) {
 		blocksFromRPC: make(chan *types.BPBlock),
 		pendingTxs:    make(chan pi.Transaction),
 		ctx:           ctx,
+		st:            strg,
 	}
+
+	// Create kayak runtime
+	var (
+		path = fmt.Sprintf("%s.ldb", cfg.DataFile)
+		wal  kt.Wal
+		rt   *kayak.Runtime
+	)
+	if err = os.MkdirAll(path, 0755); err != nil {
+		return nil, err
+	}
+	if wal, err = kl.NewLevelDBWal(path); err != nil {
+		return nil, err
+	}
+	if rt, err = kayak.NewRuntime(&kt.RuntimeConfig{
+		Handler:          chain,
+		PrepareThreshold: 1.0,
+		CommitThreshold:  1.0,
+		PrepareTimeout:   time.Second,
+		CommitTimeout:    time.Second * 60,
+		Peers:            cfg.Peers,
+		Wal:              wal,
+		NodeID:           cfg.NodeID,
+		ServiceName:      "Kayak",
+		MethodName:       "Call",
+	}); err != nil {
+		return nil, err
+	}
+	chain.ka = rt
 
 	// sub chain events
 	chain.bs.Subscribe(txEvent, chain.addTx)
@@ -194,7 +252,18 @@ func LoadChain(cfg *Config) (chain *Chain, err error) {
 		bus    = chainbus.New()
 		caller = rpc.NewCaller()
 		ctx    = context.Background()
+		strg   xi.Storage
 	)
+
+	if strg, err = xs.NewSqlite(fmt.Sprintf("file:%s-xeno", cfg.DataFile)); err != nil {
+		return nil, err
+	}
+
+	for _, ddl := range ddls {
+		if _, err = strg.Writer().Exec(ddl); err != nil {
+			return nil, err
+		}
+	}
 
 	chain = &Chain{
 		db:            db,
@@ -206,7 +275,36 @@ func LoadChain(cfg *Config) (chain *Chain, err error) {
 		blocksFromRPC: make(chan *types.BPBlock),
 		pendingTxs:    make(chan pi.Transaction),
 		ctx:           ctx,
+		st:            strg,
 	}
+
+	// Create kayak runtime
+	var (
+		path = fmt.Sprintf("%s.ldb", cfg.DataFile)
+		wal  kt.Wal
+		rt   *kayak.Runtime
+	)
+	if err = os.MkdirAll(path, 0755); err != nil {
+		return nil, err
+	}
+	if wal, err = kl.NewLevelDBWal(path); err != nil {
+		return nil, err
+	}
+	if rt, err = kayak.NewRuntime(&kt.RuntimeConfig{
+		Handler:          chain,
+		PrepareThreshold: 1.0,
+		CommitThreshold:  1.0,
+		PrepareTimeout:   time.Second,
+		CommitTimeout:    time.Second * 60,
+		Peers:            cfg.Peers,
+		Wal:              wal,
+		NodeID:           cfg.NodeID,
+		ServiceName:      "Kayak",
+		MethodName:       "Call",
+	}); err != nil {
+		return nil, err
+	}
+	chain.ka = rt
 
 	chain.bs.Subscribe(txEvent, chain.addTx)
 
