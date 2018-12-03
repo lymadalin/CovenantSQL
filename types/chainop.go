@@ -18,10 +18,14 @@ package types
 
 //go:generate hsp
 
+// ChainOPType defines chain operation type for state transition.
 type ChainOPType uint32
 
 const (
+	// ChainOPTypeAddTx defines chain operation to add tx.
 	ChainOPTypeAddTx ChainOPType = iota
+	// ChainOPTypeProduceBlock defines chain operation to produce block.
 	ChainOPTypeProduceBlock
+	// ChainOPTypeNumber defines chain operation number.
 	ChainOPTypeNumber
 )
