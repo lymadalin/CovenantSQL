@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/CovenantSQL/CovenantSQL/route"
@@ -39,6 +40,9 @@ const (
 
 	// DBMetaFileName defines dbms meta file name.
 	DBMetaFileName = "db.meta"
+
+	// DefaultSlowQueryTime defines the default slow query log time
+	DefaultSlowQueryTime = time.Second * 5
 )
 
 // DBMS defines a database management instance.
@@ -213,6 +217,7 @@ func (dbms *DBMS) Create(instance *types.ServiceInstance, cleanup bool) (err err
 		MaxWriteTimeGap: dbms.cfg.MaxReqTimeGap,
 		EncryptionKey:   instance.ResourceMeta.EncryptionKey,
 		SpaceLimit:      instance.ResourceMeta.Space,
+		SlowQueryTime:   DefaultSlowQueryTime,
 	}
 
 	if db, err = NewDatabase(dbCfg, instance.Peers, instance.GenesisBlock); err != nil {
