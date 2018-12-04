@@ -104,17 +104,26 @@ func (*Chain) DecodePayload(data []byte) (request interface{}, err error) {
 }
 
 // Check implements Check of kayak/types.Handler.
+//
+// TODO(leventeliu): we are using Check as an "OnPrepared" hook here to construct a future state
+// affected by the current log, but there are chances that the prepare phase will eventually fail
+// after a successful Check.
+//
+// One possible workaround is to adjust commit window to 0, but we'd better add a real "OnPrepared"
+// method on successful wal write for kayak handler later, and an "OnRolledBack" for external
+// state rollback is also needed.
+//
 func (c *Chain) Check(rawReq interface{}) (err error) {
 	var ierr error
 	switch r := rawReq.(type) {
 	case *types.BPBlock:
-		if ierr = r.Verify(); ierr != nil {
-			err = errors.Wrap(err, "failed to verify block")
+		if ierr = c.pushBlock(r); ierr != nil {
+			err = errors.Wrap(err, "failed to add block")
 			return
 		}
 	case pi.Transaction:
-		if ierr = r.Verify(); ierr != nil {
-			err = errors.Wrap(err, "failed to verify transaction")
+		if ierr = c.addTxFuture(r); ierr != nil {
+			err = errors.Wrap(err, "failed to add transaction")
 			return
 		}
 	default:
@@ -207,6 +216,7 @@ func (c *Chain) BlockToQueries(b *types.BPBlock) (qs []*types.Query, err error) 
 func (c *Chain) TxToQueries(tx pi.Transaction) (qs []*types.Query, err error) {
 	var (
 		tt = tx.GetTransactionType()
+		aa = tx.GetAccountAddress()
 		th = tx.Hash()
 		en []byte
 	)
@@ -224,6 +234,16 @@ func (c *Chain) TxToQueries(tx pi.Transaction) (qs []*types.Query, err error) {
 				{Value: uint32(tt)},
 				{Value: hex.EncodeToString(th[:])},
 				{Value: en},
+			},
+		},
+		&types.Query{
+			Pattern: `INSERT INTO "nonce" ("address", "nonce") VALUES (?, ?)
+			ON CONFLICT ("address") DO UPDATE SET
+				"nonce"="nonce"+1
+			`,
+			Args: []types.NamedArg{
+				{Value: hex.EncodeToString(aa[:])},
+				{Value: 1},
 			},
 		},
 	}

@@ -60,6 +60,11 @@ var (
 	"encoded"	BLOB,
 	PRIMARY KEY ("hash")
 )`,
+		`CREATE TABLE IF NOT EXISTS "nonce" (
+	"address"	TEXT,
+	"nonce"		INT,
+	PRIMARY KEY ("address")
+)`,
 	}
 	metaBucket                     = [4]byte{0x0, 0x0, 0x0, 0x0}
 	metaStateKey                   = []byte("covenantsql-state")
@@ -448,6 +453,7 @@ func (c *Chain) pushBlockWithoutCheck(b *types.BPBlock) error {
 		}
 		c.rt.setHead(state)
 		c.bi.addBlock(node)
+		c.rt.rotateLeader(uint64(node.count), c.ka)
 		return
 	})
 	return err
@@ -786,6 +792,10 @@ func (c *Chain) addTx(tx pi.Transaction) {
 			"transaction": tx.Hash().String(),
 		}).Debugf("Failed to push tx with error: %v", err)
 	}
+}
+
+func (c *Chain) addTxFuture(tx pi.Transaction) (err error) {
+	return c.db.Update(c.ms.applyTransactionProcedure(tx))
 }
 
 func (c *Chain) processTx(tx pi.Transaction) {
