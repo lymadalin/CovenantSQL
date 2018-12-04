@@ -75,14 +75,15 @@ var (
 
 // Chain defines the main chain.
 type Chain struct {
-	db *bolt.DB
-	ms *metaState
-	bi *blockIndex
-	rt *rt
-	cl *rpc.Caller
-	bs chainbus.Bus
-	st xi.Storage
-	ka *kayak.Runtime
+	db  *bolt.DB
+	ms  *metaState
+	bi  *blockIndex
+	rt  *rt
+	cl  *rpc.Caller
+	bs  chainbus.Bus
+	st  xi.Storage
+	ka  *kayak.Runtime
+	wal *kl.LevelDBWal
 
 	blocksFromRPC chan *types.BPBlock
 	pendingTxs    chan pi.Transaction
@@ -185,7 +186,7 @@ func NewChain(cfg *Config) (*Chain, error) {
 	// Create kayak runtime
 	var (
 		path = fmt.Sprintf("%s.ldb", cfg.DataFile)
-		wal  kt.Wal
+		wal  *kl.LevelDBWal
 		rt   *kayak.Runtime
 	)
 	if err = os.MkdirAll(path, 0755); err != nil {
@@ -208,6 +209,7 @@ func NewChain(cfg *Config) (*Chain, error) {
 	}); err != nil {
 		return nil, err
 	}
+	chain.wal = wal
 	chain.ka = rt
 
 	// sub chain events
@@ -281,7 +283,7 @@ func LoadChain(cfg *Config) (chain *Chain, err error) {
 	// Create kayak runtime
 	var (
 		path = fmt.Sprintf("%s.ldb", cfg.DataFile)
-		wal  kt.Wal
+		wal  *kl.LevelDBWal
 		rt   *kayak.Runtime
 	)
 	if err = os.MkdirAll(path, 0755); err != nil {
@@ -305,6 +307,7 @@ func LoadChain(cfg *Config) (chain *Chain, err error) {
 		return nil, err
 	}
 	chain.ka = rt
+	chain.wal = wal
 
 	chain.bs.Subscribe(txEvent, chain.addTx)
 
@@ -889,7 +892,13 @@ func (c *Chain) Stop() (err error) {
 	c.rt.stop()
 	log.WithFields(log.Fields{"peer": c.rt.getPeerInfoString()}).Debug("Chain service stopped")
 	// Close database file
-	err = c.db.Close()
+	c.wal.Close()
+	if err = c.ka.Shutdown(); err != nil {
+		log.WithError(err).Error("Failed to shutdown kayak runtime")
+	}
+	if err = c.db.Close(); err != nil {
+		log.WithError(err).Error("Failed to close boltdb")
+	}
 	log.WithFields(log.Fields{"peer": c.rt.getPeerInfoString()}).Debug("Chain database closed")
 	return
 }
