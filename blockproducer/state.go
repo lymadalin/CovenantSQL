@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/binary"
+	"encoding/hex"
 
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
 	"github.com/CovenantSQL/CovenantSQL/crypto/hash"
@@ -43,7 +44,7 @@ func (*Chain) EncodePayload(request interface{}) (data []byte, err error) {
 		w    interface{}
 	)
 	switch r := request.(type) {
-	case *types.Block:
+	case *types.BPBlock:
 		t = uint32(types.ChainOPTypeProduceBlock)
 		w = r
 	case pi.Transaction:
@@ -85,7 +86,7 @@ func (*Chain) DecodePayload(data []byte) (request interface{}, err error) {
 	case types.ChainOPTypeAddTx:
 		request = new(pi.TransactionWrapper)
 	case types.ChainOPTypeProduceBlock:
-		request = new(types.Block)
+		request = new(types.BPBlock)
 	default:
 		err = errors.Wrapf(ErrUnknownChainOPType, "%d", t)
 		return
@@ -106,7 +107,7 @@ func (*Chain) DecodePayload(data []byte) (request interface{}, err error) {
 func (c *Chain) Check(rawReq interface{}) (err error) {
 	var ierr error
 	switch r := rawReq.(type) {
-	case *types.Block:
+	case *types.BPBlock:
 		if ierr = r.Verify(); ierr != nil {
 			err = errors.Wrap(err, "failed to verify block")
 			return
@@ -130,12 +131,12 @@ func (c *Chain) Commit(rawReq interface{}) (result interface{}, err error) {
 		qs   []*types.Query
 	)
 	switch r := rawReq.(type) {
-	case *types.Block:
-		if qs, ierr = BlockToQueries(r); ierr != nil {
+	case *types.BPBlock:
+		if qs, ierr = c.BlockToQueries(r); ierr != nil {
 			return
 		}
 	case pi.Transaction:
-		if qs, ierr = TxToQueries(r); ierr != nil {
+		if qs, ierr = c.TxToQueries(r); ierr != nil {
 			return
 		}
 	default:
@@ -169,13 +170,62 @@ func (c *Chain) Commit(rawReq interface{}) (result interface{}, err error) {
 }
 
 // BlockToQueries converts block to queries for state storage.
-func BlockToQueries(b *types.Block) (qs []*types.Query, err error) {
-	// TODO(leventeliu)
+func (c *Chain) BlockToQueries(b *types.BPBlock) (qs []*types.Query, err error) {
+	var (
+		l  = len(b.Transactions)
+		ht = c.rt.getHeightFromTime(b.SignedHeader.Timestamp)
+		hs = hex.EncodeToString(b.SignedHeader.BlockHash[:])
+		ps = hex.EncodeToString(b.SignedHeader.ParentHash[:])
+		en []byte
+	)
+	if en, err = utils.EncodeMsgPackPlain(b); err != nil {
+		return
+	}
+	qs = make([]*types.Query, l+1)
+	for i, v := range b.Transactions {
+		var th = v.Hash()
+		qs[i] = &types.Query{
+			Pattern: `DELETE FROM "txPool" where "hash"=?`,
+			Args: []types.NamedArg{
+				{Value: hex.EncodeToString(th[:])},
+			},
+		}
+	}
+	qs[l] = &types.Query{
+		Pattern: `INSERT INTO "blocks" ("height", "hash", "parent", "encoded") VALUES (?, ?, ?, ?)`,
+		Args: []types.NamedArg{
+			{Value: ht},
+			{Value: hs},
+			{Value: ps},
+			{Value: en},
+		},
+	}
 	return
 }
 
 // TxToQueries converts tx to queries for state storage.
-func TxToQueries(tx pi.Transaction) (qs []*types.Query, err error) {
-	// TODO(leventeliu)
+func (c *Chain) TxToQueries(tx pi.Transaction) (qs []*types.Query, err error) {
+	var (
+		tt = tx.GetTransactionType()
+		th = tx.Hash()
+		en []byte
+	)
+	if en, err = utils.EncodeMsgPackPlain(tx); err != nil {
+		return
+	}
+	qs = []*types.Query{
+		&types.Query{
+			Pattern: `INSERT INTO "txPool" ("type", "hash", "encoded") VALUES (?, ?, ?)
+			ON CONFLICT ("hash") DO UPDATE SET
+				"type"="excluded"."type",
+				"encoded"="excluded"."encoded"
+			`,
+			Args: []types.NamedArg{
+				{Value: uint32(tt)},
+				{Value: hex.EncodeToString(th[:])},
+				{Value: en},
+			},
+		},
+	}
 	return
 }

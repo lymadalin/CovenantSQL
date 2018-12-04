@@ -58,7 +58,7 @@ var (
 	"type"		INT,
 	"hash"		TEXT,
 	"encoded"	BLOB,
-	PRIMARY KEY ("type")
+	PRIMARY KEY ("hash")
 )`,
 	}
 	metaBucket                     = [4]byte{0x0, 0x0, 0x0, 0x0}
