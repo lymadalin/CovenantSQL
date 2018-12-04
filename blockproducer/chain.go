@@ -47,14 +47,14 @@ import (
 
 var (
 	ddls = [...]string{
-		`CREATE TABLE IF NOT EXIST "blocks" (
+		`CREATE TABLE IF NOT EXISTS "blocks" (
 	"height"	INT,
 	"hash"		TEXT,
 	"parent"	TEXT,
 	"encoded"	BLOB,
 	PRIMARY KEY ("height", "hash")
 )`,
-		`CREATE TABLE IF NOT EXIST "txPool" (
+		`CREATE TABLE IF NOT EXISTS "txPool" (
 	"type"		INT,
 	"hash"		TEXT,
 	"encoded"	BLOB,
