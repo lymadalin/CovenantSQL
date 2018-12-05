@@ -18,7 +18,10 @@ package blockproducer
 
 import (
 	pi "github.com/CovenantSQL/CovenantSQL/blockproducer/interfaces"
+	"github.com/CovenantSQL/CovenantSQL/kayak"
+	kt "github.com/CovenantSQL/CovenantSQL/kayak/types"
 	"github.com/CovenantSQL/CovenantSQL/proto"
+	"github.com/CovenantSQL/CovenantSQL/rpc"
 	"github.com/CovenantSQL/CovenantSQL/types"
 )
 
@@ -167,6 +170,13 @@ func (s *ChainRPCService) AdviseNewBlock(req *AdviseNewBlockReq, resp *AdviseNew
 	return nil
 }
 
+func (s *ChainRPCService) AdviseNewBlockEx(
+	req *AdviseNewBlockReq, resp *AdviseNewBlockResp) (err error,
+) {
+	_, _, err = s.chain.ka.Apply(s.chain.ctx, req.Block)
+	return
+}
+
 // AdviseBillingRequest is the RPC method to advise a new billing request to main chain.
 func (s *ChainRPCService) AdviseBillingRequest(req *types.AdviseBillingReq, resp *types.AdviseBillingResp) error {
 	response, err := s.chain.produceBilling(req.Req)
@@ -222,9 +232,7 @@ func (s *ChainRPCService) AddTx(req *AddTxReq, resp *AddTxResp) (err error) {
 	if req.Tx == nil {
 		return ErrUnknownTransactionType
 	}
-
 	s.chain.pendingTxs <- req.Tx
-
 	return
 }
 
@@ -251,4 +259,27 @@ func (s *ChainRPCService) Sub(req *SubReq, resp *SubResp) (err error) {
 	return s.chain.bs.Subscribe(req.Topic, func(request interface{}, response interface{}) {
 		s.chain.cl.CallNode(req.NodeID.ToNodeID(), req.Callback, request, response)
 	})
+}
+
+// KayakService defines a kayak service.
+type KayakService struct {
+	serviceName string
+	rt          *kayak.Runtime
+}
+
+// NewKayakService returns new kayak service instance for block producer consensus.
+func NewKayakService(
+	server *rpc.Server, serviceName string, rt *kayak.Runtime) (s *KayakService, err error,
+) {
+	s = &KayakService{
+		serviceName: serviceName,
+		rt:          rt,
+	}
+	err = server.RegisterService(serviceName, s)
+	return
+}
+
+// Call handles kayak call.
+func (s *KayakService) Call(req *kt.RPCRequest, _ *interface{}) (err error) {
+	return s.rt.FollowerApply(req.Log)
 }
