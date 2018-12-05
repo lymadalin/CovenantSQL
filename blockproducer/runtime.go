@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/CovenantSQL/CovenantSQL/kayak"
 	"github.com/CovenantSQL/CovenantSQL/proto"
 	"github.com/CovenantSQL/CovenantSQL/route"
 	"github.com/CovenantSQL/CovenantSQL/rpc"
@@ -42,12 +43,14 @@ type rt struct {
 
 	bpNum uint32
 	// index is the index of the current server in the peer list.
-	index uint32
+	index       uint32
+	leaderIndex uint32
 
 	// period is the block producing cycle.
 	period time.Duration
 	// tick defines the maximum duration between each cycle.
-	tick time.Duration
+	tick        time.Duration
+	updateTerms uint64
 
 	// peersMutex protects following peers-relative fields.
 	peersMutex sync.Mutex
@@ -77,13 +80,12 @@ func (r *rt) now() time.Time {
 }
 
 func newRuntime(ctx context.Context, cfg *Config, accountAddress proto.AccountAddress) *rt {
-	var index uint32
-	for i, s := range cfg.Peers.Servers {
-		if cfg.NodeID.IsEqual(&s) {
-			index = uint32(i)
-		}
-	}
-	var cld, ccl = context.WithCancel(ctx)
+	var (
+		index, lindex int32
+		cld, ccl      = context.WithCancel(ctx)
+	)
+	index, _ = cfg.Peers.Find(cfg.NodeID)
+	lindex, _ = cfg.Peers.Find(cfg.Peers.Leader)
 	return &rt{
 		ctx:            cld,
 		cancel:         ccl,
@@ -92,9 +94,11 @@ func newRuntime(ctx context.Context, cfg *Config, accountAddress proto.AccountAd
 		accountAddress: accountAddress,
 		server:         cfg.Server,
 		bpNum:          uint32(len(cfg.Peers.Servers)),
-		index:          index,
+		index:          uint32(index),
+		leaderIndex:    uint32(lindex),
 		period:         cfg.Period,
 		tick:           cfg.Tick,
+		updateTerms:    cfg.UpdateTerms,
 		peers:          cfg.Peers,
 		nodeID:         cfg.NodeID,
 		nextTurn:       1,
@@ -105,6 +109,7 @@ func newRuntime(ctx context.Context, cfg *Config, accountAddress proto.AccountAd
 
 func (r *rt) startService(chain *Chain) {
 	r.server.RegisterService(route.BlockProducerRPCName, &ChainRPCService{chain: chain})
+	r.server.RegisterService("Kayak", &chain.ka)
 }
 
 // nextTick returns the current clock reading and the duration till the next turn. If duration
@@ -160,6 +165,24 @@ func (r *rt) getPeers() *proto.Peers {
 	defer r.peersMutex.Unlock()
 	peers := r.peers.Clone()
 	return &peers
+}
+
+func (r *rt) rotateLeader(count uint64, ka *kayak.Runtime) {
+	if r.updateTerms <= 0 {
+		return
+	}
+	r.peersMutex.Lock()
+	defer r.peersMutex.Unlock()
+	var term = count / r.updateTerms
+	r.peers = &proto.Peers{
+		PeersHeader: proto.PeersHeader{
+			Version: r.peers.Version,
+			Term:    term,
+			Leader:  r.peers.Servers[(uint64(r.leaderIndex)+term)%uint64(r.bpNum)],
+			Servers: r.peers.Servers,
+		},
+	}
+	ka.UpdatePeers(r.peers)
 }
 
 func (r *rt) getHead() *State {

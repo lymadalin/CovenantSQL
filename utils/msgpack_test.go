@@ -54,9 +54,17 @@ func TestMsgPack_EncodeDecode(t *testing.T) {
 		}
 		buf, err := EncodeMsgPack(preValue)
 		So(err, ShouldBeNil)
+		encLen := buf.Len()
 		var postValue msgpackTestStruct
 		err = DecodeMsgPack(buf.Bytes(), &postValue)
 		So(err, ShouldBeNil)
-		So(*preValue, ShouldResemble, postValue)
+		So(preValue, ShouldResemble, &postValue)
+		out, err := EncodeMsgPackPlain(preValue)
+		So(err, ShouldBeNil)
+		So(out, ShouldNotBeNil)
+		So(encLen, ShouldEqual, len(out))
+		err = DecodeMsgPackPlain(out, &postValue)
+		So(err, ShouldBeNil)
+		So(preValue, ShouldResemble, &postValue)
 	})
 }
