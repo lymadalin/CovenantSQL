@@ -328,3 +328,34 @@ func (r *runtime) setHead(head *state) {
 	defer r.stateMutex.Unlock()
 	r.head = head
 }
+
+// getQueryBilling computes the cost between [startHeight, endHeight).
+func (r *runtime) getQueryBilling(startHeight int32, endHeight int32) uint64 {
+	var (
+		cost uint64
+		node = r.getHead().node
+	)
+
+	for node.height >= endHeight {
+		node = node.parent
+	}
+
+	for node.height >= startHeight {
+		// TODO(leventeliu): support affect rows in FailedReqs to avoid computable ddos
+		for _, req := range node.block.FailedReqs {
+			cost += uint64(len(req.Payload.Queries))
+		}
+
+		// TODO(leventeliu): support query affected rows
+		for _, tx := range node.block.QueryTxs {
+			if tx.Request.Header.QueryType == types.ReadQuery {
+				cost += uint64(len(tx.Request.Payload.Queries))
+			} else {
+				cost += uint64(tx.Response.AffectedRows)
+			}
+		}
+		node = node.parent
+	}
+
+	return cost
+}
