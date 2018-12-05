@@ -134,6 +134,8 @@ func (c *Chain) Check(rawReq interface{}) (err error) {
 }
 
 // Commit implements Commit of kayak/types.Handler.
+//
+// TODO(leventeliu): add result.
 func (c *Chain) Commit(rawReq interface{}) (result interface{}, err error) {
 	var (
 		ierr error
