@@ -63,7 +63,6 @@ var (
 )
 
 func init() {
-	leveldbConf.BlockSize = 4 * 1024 * 1024
 	leveldbConf.Compression = opt.SnappyCompression
 }
 
